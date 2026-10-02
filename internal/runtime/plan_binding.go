@@ -20,7 +20,7 @@ func NewPlanBinding(plan cognition.Plan) (PlanBinding, error) {
 		AgentID:  plan.AgentID,
 		EventID:  plan.EventID,
 		Digest:   append([]byte(nil), sum[:]...),
-		Document: append(json.RawMessage(nil), document...),
+		Document: append([]byte(nil), document...),
 	}
 	if err := binding.Validate(); err != nil {
 		return PlanBinding{}, err
