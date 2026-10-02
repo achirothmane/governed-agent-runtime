@@ -52,17 +52,17 @@ const (
 )
 
 type PlanBinding struct {
-	PlanID   string          `json:"plan_id"`
-	AgentID  agent.AgentID   `json:"agent_id"`
-	EventID  string          `json:"event_id"`
-	Digest   []byte          `json:"digest"`
-	Document json.RawMessage `json:"document"`
+	PlanID   string        `json:"plan_id"`
+	AgentID  agent.AgentID `json:"agent_id"`
+	EventID  string        `json:"event_id"`
+	Digest   []byte        `json:"digest"`
+	Document []byte        `json:"document"`
 }
 
 func (b PlanBinding) Clone() PlanBinding {
 	out := b
 	out.Digest = append([]byte(nil), b.Digest...)
-	out.Document = append(json.RawMessage(nil), b.Document...)
+	out.Document = append([]byte(nil), b.Document...)
 	return out
 }
 
