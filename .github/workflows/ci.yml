@@ -11,6 +11,24 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: governed_agent_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d governed_agent_runtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/governed_agent_runtime?sslmode=disable
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,6 +38,11 @@ jobs:
         with:
           go-version: "1.24.x"
           cache: false
+
+      - name: Verify module files
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
 
       - name: Format check
         run: |
