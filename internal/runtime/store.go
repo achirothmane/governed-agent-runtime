@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,11 +52,11 @@ const (
 )
 
 type PlanBinding struct {
-	PlanID       string          `json:"plan_id"`
-	AgentID      agent.AgentID   `json:"agent_id"`
-	EventID      string          `json:"event_id"`
-	Digest       []byte          `json:"digest"`
-	Document     json.RawMessage `json:"document"`
+	PlanID   string          `json:"plan_id"`
+	AgentID  agent.AgentID   `json:"agent_id"`
+	EventID  string          `json:"event_id"`
+	Digest   []byte          `json:"digest"`
+	Document json.RawMessage `json:"document"`
 }
 
 func (b PlanBinding) Clone() PlanBinding {
@@ -75,28 +76,32 @@ func (b PlanBinding) Validate() error {
 	if strings.TrimSpace(b.EventID) == "" {
 		return errors.New("plan binding event id is required")
 	}
-	if len(b.Digest) != 32 {
-		return fmt.Errorf("plan binding digest must be 32 bytes, got %d", len(b.Digest))
+	if len(b.Digest) != sha256.Size {
+		return fmt.Errorf("plan binding digest must be %d bytes, got %d", sha256.Size, len(b.Digest))
 	}
 	if len(b.Document) == 0 || !json.Valid(b.Document) {
 		return errors.New("plan binding document must be valid JSON")
+	}
+	sum := sha256.Sum256(b.Document)
+	if !bytes.Equal(b.Digest, sum[:]) {
+		return errors.New("plan binding digest does not match document")
 	}
 	return nil
 }
 
 type WorkRecord struct {
-	Sequence           uint64          `json:"sequence"`
-	Event              Event           `json:"event"`
-	State              WorkState       `json:"state"`
-	LifecycleState     agent.State     `json:"lifecycle_state"`
-	LifecycleVersion   uint64          `json:"lifecycle_version"`
-	LifecycleUpdatedAt time.Time       `json:"lifecycle_updated_at"`
-	Plan               *PlanBinding    `json:"plan,omitempty"`
-	PlanBoundAt        *time.Time      `json:"plan_bound_at,omitempty"`
-	LeaseOwner         string          `json:"lease_owner,omitempty"`
-	LeaseEpoch         uint64          `json:"lease_epoch"`
-	LeaseExpiresAt     time.Time       `json:"lease_expires_at,omitempty"`
-	CompletedAt        *time.Time      `json:"completed_at,omitempty"`
+	Sequence           uint64       `json:"sequence"`
+	Event              Event        `json:"event"`
+	State              WorkState    `json:"state"`
+	LifecycleState     agent.State  `json:"lifecycle_state"`
+	LifecycleVersion   uint64       `json:"lifecycle_version"`
+	LifecycleUpdatedAt time.Time    `json:"lifecycle_updated_at"`
+	Plan               *PlanBinding `json:"plan,omitempty"`
+	PlanBoundAt        *time.Time   `json:"plan_bound_at,omitempty"`
+	LeaseOwner         string       `json:"lease_owner,omitempty"`
+	LeaseEpoch         uint64       `json:"lease_epoch"`
+	LeaseExpiresAt     time.Time    `json:"lease_expires_at,omitempty"`
+	CompletedAt        *time.Time   `json:"completed_at,omitempty"`
 }
 
 type LeaseToken struct {
