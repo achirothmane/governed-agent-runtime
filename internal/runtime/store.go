@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,17 +51,57 @@ const (
 	WorkDone    WorkState = "DONE"
 )
 
+type PlanBinding struct {
+	PlanID   string        `json:"plan_id"`
+	AgentID  agent.AgentID `json:"agent_id"`
+	EventID  string        `json:"event_id"`
+	Digest   []byte        `json:"digest"`
+	Document []byte        `json:"document"`
+}
+
+func (b PlanBinding) Clone() PlanBinding {
+	out := b
+	out.Digest = append([]byte(nil), b.Digest...)
+	out.Document = append([]byte(nil), b.Document...)
+	return out
+}
+
+func (b PlanBinding) Validate() error {
+	if strings.TrimSpace(b.PlanID) == "" {
+		return errors.New("plan binding id is required")
+	}
+	if strings.TrimSpace(string(b.AgentID)) == "" {
+		return errors.New("plan binding agent id is required")
+	}
+	if strings.TrimSpace(b.EventID) == "" {
+		return errors.New("plan binding event id is required")
+	}
+	if len(b.Digest) != sha256.Size {
+		return fmt.Errorf("plan binding digest must be %d bytes, got %d", sha256.Size, len(b.Digest))
+	}
+	if len(b.Document) == 0 || !json.Valid(b.Document) {
+		return errors.New("plan binding document must be valid JSON")
+	}
+	sum := sha256.Sum256(b.Document)
+	if !bytes.Equal(b.Digest, sum[:]) {
+		return errors.New("plan binding digest does not match document")
+	}
+	return nil
+}
+
 type WorkRecord struct {
-	Sequence           uint64      `json:"sequence"`
-	Event              Event       `json:"event"`
-	State              WorkState   `json:"state"`
-	LifecycleState     agent.State `json:"lifecycle_state"`
-	LifecycleVersion   uint64      `json:"lifecycle_version"`
-	LifecycleUpdatedAt time.Time   `json:"lifecycle_updated_at"`
-	LeaseOwner         string      `json:"lease_owner,omitempty"`
-	LeaseEpoch         uint64      `json:"lease_epoch"`
-	LeaseExpiresAt     time.Time   `json:"lease_expires_at,omitempty"`
-	CompletedAt        *time.Time  `json:"completed_at,omitempty"`
+	Sequence           uint64       `json:"sequence"`
+	Event              Event        `json:"event"`
+	State              WorkState    `json:"state"`
+	LifecycleState     agent.State  `json:"lifecycle_state"`
+	LifecycleVersion   uint64       `json:"lifecycle_version"`
+	LifecycleUpdatedAt time.Time    `json:"lifecycle_updated_at"`
+	Plan               *PlanBinding `json:"plan,omitempty"`
+	PlanBoundAt        *time.Time   `json:"plan_bound_at,omitempty"`
+	LeaseOwner         string       `json:"lease_owner,omitempty"`
+	LeaseEpoch         uint64       `json:"lease_epoch"`
+	LeaseExpiresAt     time.Time    `json:"lease_expires_at,omitempty"`
+	CompletedAt        *time.Time   `json:"completed_at,omitempty"`
 }
 
 type LeaseToken struct {
@@ -82,12 +123,16 @@ var (
 	ErrEventConflict              = errors.New("event id already exists with different content")
 	ErrInvalidLifecycleTransition = errors.New("invalid agent lifecycle transition")
 	ErrLifecycleIncomplete        = errors.New("agent lifecycle is not complete")
+	ErrPlanRequired               = errors.New("durable plan binding is required")
+	ErrPlanConflict               = errors.New("different plan is already bound to this work")
+	ErrPlanBindingInvalid         = errors.New("plan binding does not match work identity")
 )
 
 type Store interface {
 	Enqueue(context.Context, Event) (WorkRecord, error)
 	Claim(context.Context, string, time.Time, time.Duration) (ClaimedWork, error)
 	Renew(context.Context, LeaseToken, time.Time, time.Duration) (LeaseToken, error)
+	BindPlan(context.Context, LeaseToken, PlanBinding, time.Time) (WorkRecord, error)
 	Transition(context.Context, LeaseToken, agent.State, time.Time) (WorkRecord, error)
 	Complete(context.Context, LeaseToken, time.Time) (WorkRecord, error)
 	Get(context.Context, string) (WorkRecord, error)
@@ -118,4 +163,25 @@ func initializeLifecycle(r *WorkRecord, at time.Time) {
 	r.LifecycleState = agent.StateSleeping
 	r.LifecycleVersion = 1
 	r.LifecycleUpdatedAt = at
+}
+
+func validatePlanBindingForWork(record WorkRecord, binding PlanBinding) error {
+	if err := binding.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrPlanBindingInvalid, err)
+	}
+	if binding.AgentID != record.Event.AgentID {
+		return fmt.Errorf("%w: plan agent %q does not match event agent %q", ErrPlanBindingInvalid, binding.AgentID, record.Event.AgentID)
+	}
+	if binding.EventID != record.Event.ID {
+		return fmt.Errorf("%w: plan event %q does not match work event %q", ErrPlanBindingInvalid, binding.EventID, record.Event.ID)
+	}
+	return nil
+}
+
+func samePlanBinding(a, b PlanBinding) bool {
+	return a.PlanID == b.PlanID &&
+		a.AgentID == b.AgentID &&
+		a.EventID == b.EventID &&
+		bytes.Equal(a.Digest, b.Digest) &&
+		bytes.Equal(a.Document, b.Document)
 }

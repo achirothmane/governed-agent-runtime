@@ -193,6 +193,64 @@ func (s *PostgresStore) Renew(ctx context.Context, lease LeaseToken, now time.Ti
 	return renewed, nil
 }
 
+func (s *PostgresStore) BindPlan(ctx context.Context, lease LeaseToken, binding PlanBinding, now time.Time) (WorkRecord, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return WorkRecord{}, fmt.Errorf("begin plan binding: %w", err)
+	}
+	defer tx.Rollback()
+
+	record, err := getPostgresWorkForUpdate(ctx, tx, lease.EventID)
+	if err != nil {
+		return WorkRecord{}, err
+	}
+	if !leaseMatches(record, lease, now) {
+		return WorkRecord{}, ErrLeaseLost
+	}
+	if record.LifecycleState != agent.StatePlanning {
+		return WorkRecord{}, fmt.Errorf("%w: plan may only be bound while PLANNING, state=%s", ErrPlanBindingInvalid, record.LifecycleState)
+	}
+	if err := validatePlanBindingForWork(record, binding); err != nil {
+		return WorkRecord{}, err
+	}
+	if record.Plan != nil {
+		if samePlanBinding(*record.Plan, binding) {
+			return record, nil
+		}
+		return WorkRecord{}, ErrPlanConflict
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE agent_runtime_work
+		SET plan_id = $1,
+		    plan_agent_id = $2,
+		    plan_event_id = $3,
+		    plan_digest = $4,
+		    plan_document = $5,
+		    plan_bound_at_ns = $6
+		WHERE event_id = $7`,
+		binding.PlanID,
+		string(binding.AgentID),
+		binding.EventID,
+		binding.Digest,
+		[]byte(binding.Document),
+		now.UnixNano(),
+		lease.EventID,
+	); err != nil {
+		return WorkRecord{}, fmt.Errorf("persist plan binding: %w", err)
+	}
+
+	cloned := binding.Clone()
+	boundAt := now.UTC()
+	record.Plan = &cloned
+	record.PlanBoundAt = &boundAt
+
+	if err := tx.Commit(); err != nil {
+		return WorkRecord{}, fmt.Errorf("commit plan binding: %w", err)
+	}
+	return record, nil
+}
+
 func (s *PostgresStore) Transition(ctx context.Context, lease LeaseToken, target agent.State, now time.Time) (WorkRecord, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -209,6 +267,9 @@ func (s *PostgresStore) Transition(ctx context.Context, lease LeaseToken, target
 	}
 	if !agent.CanTransition(record.LifecycleState, target) {
 		return WorkRecord{}, fmt.Errorf("%w: %s -> %s", ErrInvalidLifecycleTransition, record.LifecycleState, target)
+	}
+	if target == agent.StateWaitingForAdmission && record.Plan == nil {
+		return WorkRecord{}, ErrPlanRequired
 	}
 
 	if _, err := tx.ExecContext(ctx, `
@@ -354,6 +415,12 @@ const postgresColumns = `
 	lifecycle_state,
 	lifecycle_version,
 	lifecycle_updated_at_ns,
+	plan_id,
+	plan_agent_id,
+	plan_event_id,
+	plan_digest,
+	plan_document,
+	plan_bound_at_ns,
 	lease_owner,
 	lease_epoch,
 	lease_expires_at_ns,
@@ -373,6 +440,12 @@ const postgresReturningColumns = `
 	w.lifecycle_state,
 	w.lifecycle_version,
 	w.lifecycle_updated_at_ns,
+	w.plan_id,
+	w.plan_agent_id,
+	w.plan_event_id,
+	w.plan_digest,
+	w.plan_document,
+	w.plan_bound_at_ns,
 	w.lease_owner,
 	w.lease_epoch,
 	w.lease_expires_at_ns,
@@ -390,11 +463,17 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		lifecycleState       string
 		lifecycleVersion     int64
 		lifecycleUpdatedAtNS int64
+		planID               sql.NullString
+		planAgentID          sql.NullString
+		planEventID          sql.NullString
+		planDigest           []byte
+		planDocument         []byte
+		planBoundAtNS        sql.NullInt64
 		leaseOwner           sql.NullString
 		leaseEpoch           int64
 		leaseExpiresAtNS     sql.NullInt64
 		completedAtNS        sql.NullInt64
-		digest               []byte
+		eventDigest          []byte
 	)
 
 	dest := []any{
@@ -408,13 +487,19 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		&lifecycleState,
 		&lifecycleVersion,
 		&lifecycleUpdatedAtNS,
+		&planID,
+		&planAgentID,
+		&planEventID,
+		&planDigest,
+		&planDocument,
+		&planBoundAtNS,
 		&leaseOwner,
 		&leaseEpoch,
 		&leaseExpiresAtNS,
 		&completedAtNS,
 	}
 	if withDigest {
-		dest = append(dest, &digest)
+		dest = append(dest, &eventDigest)
 	}
 
 	if err := scanner.Scan(dest...); err != nil {
@@ -439,6 +524,31 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		LifecycleUpdatedAt: time.Unix(0, lifecycleUpdatedAtNS).UTC(),
 		LeaseEpoch:         uint64(leaseEpoch),
 	}
+
+	hasAnyPlanField := planID.Valid || planAgentID.Valid || planEventID.Valid || len(planDigest) > 0 || len(planDocument) > 0 || planBoundAtNS.Valid
+	hasAllPlanFields := planID.Valid && planAgentID.Valid && planEventID.Valid && len(planDigest) > 0 && len(planDocument) > 0 && planBoundAtNS.Valid
+	if hasAnyPlanField && !hasAllPlanFields {
+		return WorkRecord{}, nil, errors.New("postgres runtime store contains partial plan binding")
+	}
+	if hasAllPlanFields {
+		binding := PlanBinding{
+			PlanID:   planID.String,
+			AgentID:  agent.AgentID(planAgentID.String),
+			EventID:  planEventID.String,
+			Digest:   append([]byte(nil), planDigest...),
+			Document: append([]byte(nil), planDocument...),
+		}
+		if err := binding.Validate(); err != nil {
+			return WorkRecord{}, nil, fmt.Errorf("postgres runtime store contains invalid plan binding: %w", err)
+		}
+		if binding.AgentID != record.Event.AgentID || binding.EventID != record.Event.ID {
+			return WorkRecord{}, nil, errors.New("postgres runtime store contains plan binding for different work identity")
+		}
+		boundAt := time.Unix(0, planBoundAtNS.Int64).UTC()
+		record.Plan = &binding
+		record.PlanBoundAt = &boundAt
+	}
+
 	if leaseOwner.Valid {
 		record.LeaseOwner = leaseOwner.String
 	}
@@ -450,7 +560,7 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		record.CompletedAt = &completedAt
 	}
 
-	return record, digest, nil
+	return record, eventDigest, nil
 }
 
 func digestEvent(event Event) ([]byte, error) {

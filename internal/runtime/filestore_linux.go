@@ -145,6 +145,42 @@ func (s *FileStore) Renew(ctx context.Context, lease LeaseToken, now time.Time, 
 	return out, err
 }
 
+func (s *FileStore) BindPlan(ctx context.Context, lease LeaseToken, binding PlanBinding, now time.Time) (WorkRecord, error) {
+	var out WorkRecord
+	err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
+		r, ok := state.Work[lease.EventID]
+		if !ok {
+			return false, ErrWorkNotFound
+		}
+		initializeLifecycle(&r, r.Event.CreatedAt)
+		if !leaseMatches(r, lease, now) {
+			return false, ErrLeaseLost
+		}
+		if r.LifecycleState != agent.StatePlanning {
+			return false, fmt.Errorf("%w: plan may only be bound while PLANNING, state=%s", ErrPlanBindingInvalid, r.LifecycleState)
+		}
+		if err := validatePlanBindingForWork(r, binding); err != nil {
+			return false, err
+		}
+		if r.Plan != nil {
+			if samePlanBinding(*r.Plan, binding) {
+				out = r
+				return false, nil
+			}
+			return false, ErrPlanConflict
+		}
+
+		cloned := binding.Clone()
+		boundAt := now
+		r.Plan = &cloned
+		r.PlanBoundAt = &boundAt
+		state.Work[r.Event.ID] = r
+		out = r
+		return true, nil
+	})
+	return out, err
+}
+
 func (s *FileStore) Transition(ctx context.Context, lease LeaseToken, target agent.State, now time.Time) (WorkRecord, error) {
 	var out WorkRecord
 	err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
@@ -158,6 +194,9 @@ func (s *FileStore) Transition(ctx context.Context, lease LeaseToken, target age
 		}
 		if !agent.CanTransition(r.LifecycleState, target) {
 			return false, fmt.Errorf("%w: %s -> %s", ErrInvalidLifecycleTransition, r.LifecycleState, target)
+		}
+		if target == agent.StateWaitingForAdmission && r.Plan == nil {
+			return false, ErrPlanRequired
 		}
 
 		r.LifecycleState = target
