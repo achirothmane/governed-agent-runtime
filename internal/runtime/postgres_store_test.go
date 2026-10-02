@@ -157,17 +157,20 @@ func TestPostgresStoreTakeoverFromExecutingBecomesUnknownAndFencesOldOwner(t *te
 		t.Fatal(err)
 	}
 
-	now := t0.Add(time.Second)
-	for _, state := range []agent.State{
-		agent.StateWaking,
-		agent.StatePlanning,
-		agent.StateWaitingForAdmission,
-		agent.StateExecuting,
-	} {
-		if _, err := store.Transition(ctx, claimA.Lease, state, now); err != nil {
-			t.Fatalf("transition to %s: %v", state, err)
-		}
-		now = now.Add(time.Second)
+	if _, err := store.Transition(ctx, claimA.Lease, agent.StateWaking, t0.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Transition(ctx, claimA.Lease, agent.StatePlanning, t0.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BindPlan(ctx, claimA.Lease, testPlanBinding("pg-takeover"), t0.Add(3*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Transition(ctx, claimA.Lease, agent.StateWaitingForAdmission, t0.Add(4*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Transition(ctx, claimA.Lease, agent.StateExecuting, t0.Add(5*time.Second)); err != nil {
+		t.Fatal(err)
 	}
 
 	claimB, err := store.Claim(ctx, "worker-b", t0.Add(10*time.Second), 10*time.Second)
@@ -179,6 +182,9 @@ func TestPostgresStoreTakeoverFromExecutingBecomesUnknownAndFencesOldOwner(t *te
 	}
 	if claimB.Record.LifecycleState != agent.StateUnknown {
 		t.Fatalf("takeover lifecycle state = %s, want UNKNOWN", claimB.Record.LifecycleState)
+	}
+	if claimB.Record.Plan == nil || claimB.Record.Plan.PlanID != "plan-1" {
+		t.Fatalf("takeover lost plan binding: %+v", claimB.Record.Plan)
 	}
 
 	if _, err := store.Transition(ctx, claimA.Lease, agent.StateVerifying, t0.Add(11*time.Second)); !errors.Is(err, ErrLeaseLost) {
