@@ -536,7 +536,7 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 			AgentID:  agent.AgentID(planAgentID.String),
 			EventID:  planEventID.String,
 			Digest:   append([]byte(nil), planDigest...),
-			Document: append(json.RawMessage(nil), planDocument...),
+			Document: append([]byte(nil), planDocument...),
 		}
 		if err := binding.Validate(); err != nil {
 			return WorkRecord{}, nil, fmt.Errorf("postgres runtime store contains invalid plan binding: %w", err)
