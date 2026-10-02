@@ -13,7 +13,7 @@ import (
 )
 
 func testPlanBinding(eventID string) PlanBinding {
-	document := json.RawMessage(`{"id":"plan-1","agent_id":"release-engineer","event_id":"` + eventID + `"}`)
+	document := []byte(`{"id":"plan-1","agent_id":"release-engineer","event_id":"` + eventID + `"}`)
 	sum := sha256.Sum256(document)
 	return PlanBinding{
 		PlanID:   "plan-1",
