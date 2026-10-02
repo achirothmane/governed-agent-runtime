@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS agent_runtime_work (
     ),
     lifecycle_version BIGINT NOT NULL CHECK (lifecycle_version > 0),
     lifecycle_updated_at_ns BIGINT NOT NULL,
+    plan_id TEXT,
+    plan_agent_id TEXT,
+    plan_event_id TEXT,
+    plan_digest BYTEA,
+    plan_document BYTEA,
+    plan_bound_at_ns BIGINT,
     lease_owner TEXT,
     lease_epoch BIGINT NOT NULL DEFAULT 0 CHECK (lease_epoch >= 0),
     lease_expires_at_ns BIGINT,
@@ -34,8 +40,30 @@ CREATE TABLE IF NOT EXISTS agent_runtime_work (
     CHECK (
         work_state <> 'DONE'
         OR completed_at_ns IS NOT NULL
+    ),
+    CHECK (
+        (plan_id IS NULL
+         AND plan_agent_id IS NULL
+         AND plan_event_id IS NULL
+         AND plan_digest IS NULL
+         AND plan_document IS NULL
+         AND plan_bound_at_ns IS NULL)
+        OR
+        (plan_id IS NOT NULL
+         AND plan_agent_id IS NOT NULL
+         AND plan_event_id IS NOT NULL
+         AND plan_digest IS NOT NULL
+         AND plan_document IS NOT NULL
+         AND plan_bound_at_ns IS NOT NULL)
     )
 );
+
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_id TEXT;
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_agent_id TEXT;
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_event_id TEXT;
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_digest BYTEA;
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_document BYTEA;
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_bound_at_ns BIGINT;
 
 CREATE INDEX IF NOT EXISTS agent_runtime_work_claim_idx
     ON agent_runtime_work (work_state, lease_expires_at_ns, sequence);
