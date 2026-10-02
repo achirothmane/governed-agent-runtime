@@ -76,12 +76,12 @@ type ClaimedWork struct {
 }
 
 var (
-	ErrNoWork                    = errors.New("no claimable work")
-	ErrWorkNotFound              = errors.New("work not found")
-	ErrLeaseLost                 = errors.New("execution lease lost")
-	ErrEventConflict             = errors.New("event id already exists with different content")
+	ErrNoWork                     = errors.New("no claimable work")
+	ErrWorkNotFound               = errors.New("work not found")
+	ErrLeaseLost                  = errors.New("execution lease lost")
+	ErrEventConflict              = errors.New("event id already exists with different content")
 	ErrInvalidLifecycleTransition = errors.New("invalid agent lifecycle transition")
-	ErrLifecycleIncomplete       = errors.New("agent lifecycle is not complete")
+	ErrLifecycleIncomplete        = errors.New("agent lifecycle is not complete")
 )
 
 type Store interface {
