@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -9,6 +11,18 @@ import (
 
 	"github.com/achirothmane/governed-agent-runtime/internal/agent"
 )
+
+func testPlanBinding(eventID string) PlanBinding {
+	document := json.RawMessage(`{"id":"plan-1","agent_id":"release-engineer","event_id":"` + eventID + `"}`)
+	sum := sha256.Sum256(document)
+	return PlanBinding{
+		PlanID:   "plan-1",
+		AgentID:  agent.AgentID("release-engineer"),
+		EventID:  eventID,
+		Digest:   append([]byte(nil), sum[:]...),
+		Document: document,
+	}
+}
 
 func TestLifecycleTransitionRequiresCurrentLease(t *testing.T) {
 	ctx := context.Background()
@@ -38,7 +52,13 @@ func TestLifecycleTransitionRequiresCurrentLease(t *testing.T) {
 		t.Fatalf("wrong owner transition error = %v, want ErrLeaseLost", err)
 	}
 
-	if _, err := store.Transition(ctx, claim.Lease, agent.StateExecuting, t0.Add(2*time.Second)); !errors.Is(err, ErrInvalidLifecycleTransition) {
+	if _, err := store.Transition(ctx, claim.Lease, agent.StatePlanning, t0.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Transition(ctx, claim.Lease, agent.StateWaitingForAdmission, t0.Add(3*time.Second)); !errors.Is(err, ErrPlanRequired) {
+		t.Fatalf("unbound plan admission error = %v, want ErrPlanRequired", err)
+	}
+	if _, err := store.Transition(ctx, claim.Lease, agent.StateExecuting, t0.Add(3*time.Second)); !errors.Is(err, ErrInvalidLifecycleTransition) {
 		t.Fatalf("skipped admission transition error = %v, want ErrInvalidLifecycleTransition", err)
 	}
 }
@@ -57,20 +77,23 @@ func TestTakeoverFromExecutingBecomesUnknownAndFencesOldWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := t0.Add(time.Second)
-	for _, state := range []agent.State{
-		agent.StateWaking,
-		agent.StatePlanning,
-		agent.StateWaitingForAdmission,
-		agent.StateExecuting,
-	} {
-		if _, err := storeA.Transition(ctx, claimA.Lease, state, now); err != nil {
-			t.Fatalf("transition to %s: %v", state, err)
-		}
-		now = now.Add(time.Second)
+	if _, err := storeA.Transition(ctx, claimA.Lease, agent.StateWaking, t0.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := storeA.Transition(ctx, claimA.Lease, agent.StatePlanning, t0.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := storeA.BindPlan(ctx, claimA.Lease, testPlanBinding("evt-effect"), t0.Add(3*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := storeA.Transition(ctx, claimA.Lease, agent.StateWaitingForAdmission, t0.Add(4*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := storeA.Transition(ctx, claimA.Lease, agent.StateExecuting, t0.Add(5*time.Second)); err != nil {
+		t.Fatal(err)
 	}
 
-	if _, err := storeA.Complete(ctx, claimA.Lease, t0.Add(5*time.Second)); !errors.Is(err, ErrLifecycleIncomplete) {
+	if _, err := storeA.Complete(ctx, claimA.Lease, t0.Add(6*time.Second)); !errors.Is(err, ErrLifecycleIncomplete) {
 		t.Fatalf("executing work completed without verification: %v", err)
 	}
 
@@ -87,6 +110,9 @@ func TestTakeoverFromExecutingBecomesUnknownAndFencesOldWorker(t *testing.T) {
 	}
 	if claimB.Record.LifecycleVersion != 6 {
 		t.Fatalf("takeover lifecycle version = %d, want 6", claimB.Record.LifecycleVersion)
+	}
+	if claimB.Record.Plan == nil || claimB.Record.Plan.PlanID != "plan-1" {
+		t.Fatalf("takeover lost plan binding: %+v", claimB.Record.Plan)
 	}
 
 	if _, err := storeA.Transition(ctx, claimA.Lease, agent.StateVerifying, t0.Add(11*time.Second)); !errors.Is(err, ErrLeaseLost) {
