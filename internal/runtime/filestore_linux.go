@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/achirothmane/governed-agent-runtime/internal/agent"
 )
 
 type fileState struct {
@@ -47,15 +49,19 @@ func (s *FileStore) Enqueue(ctx context.Context, event Event) (WorkRecord, error
 			if !sameEvent(existing.Event, event) {
 				return false, ErrEventConflict
 			}
+			initializeLifecycle(&existing, existing.Event.CreatedAt)
 			out = existing
 			return false, nil
 		}
 
 		state.NextSequence++
 		out = WorkRecord{
-			Sequence: state.NextSequence,
-			Event:    event,
-			State:    WorkPending,
+			Sequence:           state.NextSequence,
+			Event:              event,
+			State:              WorkPending,
+			LifecycleState:     agent.StateSleeping,
+			LifecycleVersion:   1,
+			LifecycleUpdatedAt: event.CreatedAt,
 		}
 		state.Work[event.ID] = out
 		return true, nil
@@ -85,6 +91,15 @@ func (s *FileStore) Claim(ctx context.Context, workerID string, now time.Time, t
 		})
 
 		r := eligible[0]
+		initializeLifecycle(&r, r.Event.CreatedAt)
+
+		takingOverExpiredLease := r.State == WorkLeased && !r.LeaseExpiresAt.After(now)
+		if takingOverExpiredLease && r.LifecycleState == agent.StateExecuting {
+			r.LifecycleState = agent.StateUnknown
+			r.LifecycleVersion++
+			r.LifecycleUpdatedAt = now
+		}
+
 		r.State = WorkLeased
 		r.LeaseOwner = workerID
 		r.LeaseEpoch++
@@ -130,6 +145,31 @@ func (s *FileStore) Renew(ctx context.Context, lease LeaseToken, now time.Time, 
 	return out, err
 }
 
+func (s *FileStore) Transition(ctx context.Context, lease LeaseToken, target agent.State, now time.Time) (WorkRecord, error) {
+	var out WorkRecord
+	err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
+		r, ok := state.Work[lease.EventID]
+		if !ok {
+			return false, ErrWorkNotFound
+		}
+		initializeLifecycle(&r, r.Event.CreatedAt)
+		if !leaseMatches(r, lease, now) {
+			return false, ErrLeaseLost
+		}
+		if !agent.CanTransition(r.LifecycleState, target) {
+			return false, fmt.Errorf("%w: %s -> %s", ErrInvalidLifecycleTransition, r.LifecycleState, target)
+		}
+
+		r.LifecycleState = target
+		r.LifecycleVersion++
+		r.LifecycleUpdatedAt = now
+		state.Work[r.Event.ID] = r
+		out = r
+		return true, nil
+	})
+	return out, err
+}
+
 func (s *FileStore) Complete(ctx context.Context, lease LeaseToken, now time.Time) (WorkRecord, error) {
 	var out WorkRecord
 	err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
@@ -137,8 +177,12 @@ func (s *FileStore) Complete(ctx context.Context, lease LeaseToken, now time.Tim
 		if !ok {
 			return false, ErrWorkNotFound
 		}
+		initializeLifecycle(&r, r.Event.CreatedAt)
 		if !leaseMatches(r, lease, now) {
 			return false, ErrLeaseLost
+		}
+		if r.LifecycleState != agent.StateSleeping {
+			return false, fmt.Errorf("%w: state=%s", ErrLifecycleIncomplete, r.LifecycleState)
 		}
 
 		r.State = WorkDone
@@ -158,6 +202,7 @@ func (s *FileStore) Get(ctx context.Context, eventID string) (WorkRecord, error)
 		if !ok {
 			return false, ErrWorkNotFound
 		}
+		initializeLifecycle(&r, r.Event.CreatedAt)
 		out = r
 		return false, nil
 	})
