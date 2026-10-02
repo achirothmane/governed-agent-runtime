@@ -39,15 +39,10 @@ jobs:
           go-version: "1.24.x"
           cache: false
 
-      - name: Resolve dependencies
+      - name: Verify module files
         run: |
           go mod tidy
-          echo "__GO_MOD_BEGIN__"
-          cat go.mod
-          echo "__GO_MOD_END__"
-          echo "__GO_SUM_BEGIN__"
-          cat go.sum
-          echo "__GO_SUM_END__"
+          git diff --exit-code -- go.mod go.sum
 
       - name: Format check
         run: |
