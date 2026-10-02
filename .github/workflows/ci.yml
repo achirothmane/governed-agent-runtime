@@ -39,8 +39,15 @@ jobs:
           go-version: "1.24.x"
           cache: false
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Resolve dependencies
+        run: |
+          go mod tidy
+          echo "__GO_MOD_BEGIN__"
+          cat go.mod
+          echo "__GO_MOD_END__"
+          echo "__GO_SUM_BEGIN__"
+          cat go.sum
+          echo "__GO_SUM_END__"
 
       - name: Format check
         run: |
