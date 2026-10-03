@@ -59,7 +59,7 @@ func testRemoteAdmission(t *testing.T, store Store) {
 			if request.Subject.PlanDigest != allowedDigest || revoked.Load() {
 				return governance.Grant{}, governance.ErrAdmission
 			}
-			return governance.Grant{Target: "test-repository", Profile: "release-engineer", Witness: witness, ValidUntil: now.Add(30*time.Second)}, nil
+			return governance.Grant{Target: "test-repository", Profile: "release-engineer", Witness: witness, ValidUntil: now.Add(30 * time.Second)}, nil
 		},
 		Revalidate: func(_ context.Context, _ governance.Admission) (governance.Witness, error) {
 			if revoked.Load() {
@@ -85,7 +85,7 @@ func testRemoteAdmission(t *testing.T, store Store) {
 	}
 	request := governance.AdmissionRequest{
 		Subject: governance.Subject{AgentID: string(record.Event.AgentID), EventID: record.Event.ID, WorkerID: claim.Lease.WorkerID, LeaseEpoch: claim.Lease.Epoch, PlanDigest: allowedDigest},
-		Plan: record.Plan.Document,
+		Plan:    record.Plan.Document,
 	}
 	signed, err := client.Request(ctx, request)
 	if err != nil {

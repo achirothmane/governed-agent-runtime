@@ -16,8 +16,8 @@ import (
 
 type Client struct {
 	baseURL string
-	token string
-	http *http.Client
+	token   string
+	http    *http.Client
 }
 
 func NewClient(baseURL, token string) (*Client, error) {
@@ -33,7 +33,7 @@ func NewClient(baseURL, token string) (*Client, error) {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"), token: token,
 		http: &http.Client{
-			Timeout: 10*time.Second,
+			Timeout:       10 * time.Second,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}, nil

@@ -17,23 +17,23 @@ import (
 
 type AdmissionRequest struct {
 	Subject Subject
-	Plan []byte
+	Plan    []byte
 }
 
 // Grant is returned by host-owned policy, never supplied by the requester.
 type Grant struct {
-	Target string
-	Profile string
-	Witness Witness
+	Target     string
+	Profile    string
+	Witness    Witness
 	ValidUntil time.Time
 }
 
 type ServiceConfig struct {
-	PrivateKey ed25519.PrivateKey
-	BearerToken string
-	Clock func() time.Time
-	Authorize func(context.Context, AdmissionRequest) (Grant, error)
-	Revalidate func(context.Context, Admission) (Witness, error)
+	PrivateKey    ed25519.PrivateKey
+	BearerToken   string
+	Clock         func() time.Time
+	Authorize     func(context.Context, AdmissionRequest) (Grant, error)
+	Revalidate    func(context.Context, Admission) (Witness, error)
 	MaxAdmissions int
 }
 
@@ -41,7 +41,7 @@ type ServiceConfig struct {
 // Its bounded issuance ledger is volatile: restart invalidates outstanding IDs.
 type Service struct {
 	config ServiceConfig
-	mu sync.RWMutex
+	mu     sync.RWMutex
 	issued map[string]Admission
 }
 
@@ -99,7 +99,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		signed := SignedAdmission{Document: document, Signature: ed25519.Sign(s.config.PrivateKey, document)}
 		verifier := Verifier{
 			PublicKey: s.config.PrivateKey.Public().(ed25519.PublicKey),
-			Clock: s.config.Clock, Current: s.config.Revalidate,
+			Clock:     s.config.Clock, Current: s.config.Revalidate,
 		}
 		if _, err := verifier.Verify(r.Context(), signed, request.Subject, s.config.Clock()); err != nil {
 			w.WriteHeader(http.StatusForbidden)

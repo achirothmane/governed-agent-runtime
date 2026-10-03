@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/achirothmane/governed-agent-runtime/internal/agent"
 	"github.com/achirothmane/governed-agent-runtime/internal/governance"
- "github.com/achirothmane/governed-agent-runtime/internal/agent"
 )
 
 // BeginRemoteExecution obtains externally signed admission; the store still
@@ -23,7 +23,9 @@ func BeginRemoteExecution(ctx context.Context, store Store, lease LeaseToken, cl
 	if !leaseMatches(record, lease, now) {
 		return WorkRecord{}, ErrLeaseLost
 	}
- if record.LifecycleState != agent.StateWaitingForAdmission { return WorkRecord{}, ErrInvalidLifecycleTransition }
+	if record.LifecycleState != agent.StateWaitingForAdmission {
+		return WorkRecord{}, ErrInvalidLifecycleTransition
+	}
 	if record.Plan == nil {
 		return WorkRecord{}, ErrPlanRequired
 	}
