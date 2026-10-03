@@ -67,3 +67,6 @@ ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_bound_at_ns BIGINT;
 
 CREATE INDEX IF NOT EXISTS agent_runtime_work_claim_idx
     ON agent_runtime_work (work_state, lease_expires_at_ns, sequence);
+
+
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS admission_document BYTEA;

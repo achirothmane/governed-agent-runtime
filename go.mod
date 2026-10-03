@@ -1,8 +1,11 @@
 module github.com/achirothmane/governed-agent-runtime
 
-go 1.24
+go 1.25.0
 
-require github.com/jackc/pgx/v5 v5.7.6
+require (
+	github.com/achirothmane/aegis-ege/governedaction v0.0.0-20261003012850-20f118dae868
+	github.com/jackc/pgx/v5 v5.7.6
+)
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect

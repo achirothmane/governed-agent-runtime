@@ -88,7 +88,7 @@ func TestTakeoverFromExecutingBecomesUnknownAndFencesOldWorker(t *testing.T) {
 	if _, err := storeA.Transition(ctx, claimA.Lease, agent.StateWaitingForAdmission, t0.Add(4*time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := storeA.Transition(ctx, claimA.Lease, agent.StateExecuting, t0.Add(5*time.Second)); err != nil {
+	if _, err := beginTestExecution(t, storeA, claimA.Lease, t0.Add(5*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 

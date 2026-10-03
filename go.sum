@@ -1,3 +1,5 @@
+github.com/achirothmane/aegis-ege/governedaction v0.0.0-20261003012850-20f118dae868 h1:ge4oDy27FPF6Sh0q98Gxp+KyoI4ULRw9zO4+6J3XW/A=
+github.com/achirothmane/aegis-ege/governedaction v0.0.0-20261003012850-20f118dae868/go.mod h1:uLBkk4ZgcbCqsuKdWPlRcVP2s0vousWK5BGPuC9o3MY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
