@@ -33,7 +33,7 @@ func admissionFixture(t *testing.T, s Store, lease LeaseToken, now time.Time) (g
 		IssuedAt: now, ValidUntil: now.Add(time.Minute),
 	}
 	signed := signAdmission(t, a, key)
-	v := governance.Verifier{PublicKey: pub, Current: func(context.Context, governance.Admission) (governance.Witness, error) {
+	v := governance.Verifier{PublicKey: pub, Clock: func() time.Time { return now }, Current: func(context.Context, governance.Admission) (governance.Witness, error) {
 		return a.Witness, nil
 	}}
 	return signed, v, a, key
@@ -113,6 +113,17 @@ func testAdmissionStore(t *testing.T, s Store) {
 	if _, err := s.BeginExecution(ctx, claim.Lease, badSignature, v, now); err == nil {
 		t.Fatal("bad signature accepted")
 	}
+
+ slow := v
+ boundaryTime := now
+ slow.Clock = func() time.Time { return boundaryTime }
+ slow.Current = func(context.Context, governance.Admission) (governance.Witness, error) {
+  boundaryTime = now.Add(2*time.Minute)
+  return a.Witness, nil
+ }
+ if _, err := s.BeginExecution(ctx, claim.Lease, signed, slow, now); err == nil {
+  t.Fatal("admission expired during current-state lookup accepted")
+ }
 	r, err := s.BeginExecution(ctx, claim.Lease, signed, v, now)
 	if err != nil || r.LifecycleState != agent.StateExecuting || r.Admission == nil {
 		t.Fatalf("valid admission rejected: %+v %v", r, err)

@@ -364,6 +364,7 @@ func (s *FileStore) persistLocked(state *fileState) error {
 
 
 func (s *FileStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, verifier governance.Verifier, now time.Time) (WorkRecord, error) {
+ signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
  var out WorkRecord
  err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
   r, ok := state.Work[lease.EventID]

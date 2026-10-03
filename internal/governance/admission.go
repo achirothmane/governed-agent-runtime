@@ -55,6 +55,7 @@ type Subject struct {
 
 type Verifier struct {
 	PublicKey ed25519.PublicKey
+ Clock func() time.Time
 	Current func(context.Context, Admission) (Witness, error)
 }
 
@@ -62,10 +63,11 @@ func (v Verifier) Verify(ctx context.Context, signed SignedAdmission, subject Su
 	if err := ctx.Err(); err != nil {
 		return Admission{}, err
 	}
-	if len(v.PublicKey) != ed25519.PublicKeySize || v.Current == nil ||
+	if len(v.PublicKey) != ed25519.PublicKeySize || v.Current == nil || v.Clock == nil ||
 		!ed25519.Verify(v.PublicKey, signed.Document, signed.Signature) {
 		return Admission{}, ErrAdmission
 	}
+ now = v.Clock()
 	var a Admission
 	decoder := json.NewDecoder(bytes.NewReader(signed.Document))
 	decoder.DisallowUnknownFields()
@@ -99,7 +101,7 @@ func (v Verifier) Verify(ctx context.Context, signed SignedAdmission, subject Su
 	if err != nil {
 		return Admission{}, err
 	}
-	if current != a.Witness {
+	if current != a.Witness || governedaction.CheckValidity(a.ValidUntil, v.Clock()) != nil {
 		return Admission{}, ErrAdmission
 	}
 	return a, ctx.Err()

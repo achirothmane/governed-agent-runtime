@@ -43,7 +43,7 @@ jobs:
         run: |
           go mod tidy
           gofmt -w .
-          git diff -- go.mod go.sum internal
+          python -c 'import pathlib,base64; paths=[pathlib.Path("go.mod"),pathlib.Path("go.sum"),*pathlib.Path("internal").rglob("*.go")]; [print("FORMATTED:"+str(p)+":"+base64.b64encode(p.read_bytes()).decode()) for p in paths]'
 
 
       - name: Format check

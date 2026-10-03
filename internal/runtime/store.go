@@ -196,5 +196,7 @@ func verifyAdmission(ctx context.Context, r WorkRecord, lease LeaseToken, signed
  if r.Plan == nil { return ErrPlanRequired }
  if err := validatePlanBindingForWork(r, *r.Plan); err != nil { return err }
  _, err := verifier.Verify(ctx, signed, governance.Subject{AgentID: string(r.Event.AgentID), EventID: r.Event.ID, WorkerID: lease.WorkerID, LeaseEpoch: lease.Epoch, PlanDigest: fmt.Sprintf("%x", r.Plan.Digest)}, now)
- return err
+ if err != nil { return err }
+ if verifier.Clock == nil || !leaseMatches(r, lease, verifier.Clock()) { return ErrLeaseLost }
+ return nil
 }

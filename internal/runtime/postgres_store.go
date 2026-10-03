@@ -585,6 +585,7 @@ func digestEvent(event Event) ([]byte, error) {
 
 
 func (s *PostgresStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, verifier governance.Verifier, now time.Time) (WorkRecord, error) {
+ signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
  tx, err := s.db.BeginTx(ctx, nil)
  if err != nil { return WorkRecord{}, err }
  defer tx.Rollback()
