@@ -169,7 +169,7 @@ func TestPostgresStoreTakeoverFromExecutingBecomesUnknownAndFencesOldOwner(t *te
 	if _, err := store.Transition(ctx, claimA.Lease, agent.StateWaitingForAdmission, t0.Add(4*time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Transition(ctx, claimA.Lease, agent.StateExecuting, t0.Add(5*time.Second)); err != nil {
+	if _, err := beginTestExecution(t, store, claimA.Lease, t0.Add(5*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -242,3 +242,4 @@ func TestPostgresStoreRestartPreservesLeaseAndRenewal(t *testing.T) {
 		t.Fatalf("premature takeover error = %v, want ErrNoWork", err)
 	}
 }
+

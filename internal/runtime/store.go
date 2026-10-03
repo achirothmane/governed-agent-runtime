@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/achirothmane/governed-agent-runtime/internal/agent"
+ "github.com/achirothmane/governed-agent-runtime/internal/governance"
 )
 
 type Event struct {
@@ -90,6 +91,7 @@ func (b PlanBinding) Validate() error {
 }
 
 type WorkRecord struct {
+ Admission *governance.SignedAdmission `json:"admission,omitempty"`
 	Sequence           uint64       `json:"sequence"`
 	Event              Event        `json:"event"`
 	State              WorkState    `json:"state"`
@@ -129,6 +131,7 @@ var (
 )
 
 type Store interface {
+ BeginExecution(context.Context, LeaseToken, governance.SignedAdmission, governance.Verifier, time.Time) (WorkRecord, error)
 	Enqueue(context.Context, Event) (WorkRecord, error)
 	Claim(context.Context, string, time.Time, time.Duration) (ClaimedWork, error)
 	Renew(context.Context, LeaseToken, time.Time, time.Duration) (LeaseToken, error)
@@ -184,4 +187,14 @@ func samePlanBinding(a, b PlanBinding) bool {
 		a.EventID == b.EventID &&
 		bytes.Equal(a.Digest, b.Digest) &&
 		bytes.Equal(a.Document, b.Document)
+}
+
+
+func verifyAdmission(ctx context.Context, r WorkRecord, lease LeaseToken, signed governance.SignedAdmission, verifier governance.Verifier, now time.Time) error {
+ if !leaseMatches(r, lease, now) { return ErrLeaseLost }
+ if r.LifecycleState != agent.StateWaitingForAdmission { return ErrInvalidLifecycleTransition }
+ if r.Plan == nil { return ErrPlanRequired }
+ if err := validatePlanBindingForWork(r, *r.Plan); err != nil { return err }
+ _, err := verifier.Verify(ctx, signed, governance.Subject{AgentID: string(r.Event.AgentID), EventID: r.Event.ID, WorkerID: lease.WorkerID, LeaseEpoch: lease.Epoch, PlanDigest: fmt.Sprintf("%x", r.Plan.Digest)}, now)
+ return err
 }
