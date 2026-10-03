@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
