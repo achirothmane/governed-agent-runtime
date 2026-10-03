@@ -151,4 +151,3 @@ func TestExpiredLeaseCannotAdvanceLifecycleWithoutTakeover(t *testing.T) {
 		t.Fatalf("expired lease transition error = %v, want ErrLeaseLost", err)
 	}
 }
-

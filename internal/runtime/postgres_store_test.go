@@ -242,4 +242,3 @@ func TestPostgresStoreRestartPreservesLeaseAndRenewal(t *testing.T) {
 		t.Fatalf("premature takeover error = %v, want ErrNoWork", err)
 	}
 }
-

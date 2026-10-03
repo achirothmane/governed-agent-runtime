@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/achirothmane/governed-agent-runtime/internal/agent"
- "github.com/achirothmane/governed-agent-runtime/internal/governance"
+	"github.com/achirothmane/governed-agent-runtime/internal/governance"
 )
 
 type fileState struct {
@@ -22,7 +22,7 @@ type fileState struct {
 }
 
 type FileStore struct {
- verifier governance.Verifier
+	verifier governance.Verifier
 	path     string
 	lockPath string
 }
@@ -198,9 +198,9 @@ func (s *FileStore) Transition(ctx context.Context, lease LeaseToken, target age
 			return false, fmt.Errorf("%w: %s -> %s", ErrInvalidLifecycleTransition, r.LifecycleState, target)
 		}
 		if target == agent.StateExecuting {
- return false, governance.ErrAdmission
- }
- if target == agent.StateWaitingForAdmission && r.Plan == nil {
+			return false, governance.ErrAdmission
+		}
+		if target == agent.StateWaitingForAdmission && r.Plan == nil {
 			return false, ErrPlanRequired
 		}
 
@@ -363,29 +363,34 @@ func (s *FileStore) persistLocked(state *fileState) error {
 	return nil
 }
 
-
 func (s *FileStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, now time.Time) (WorkRecord, error) {
- signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
- var out WorkRecord
- err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
-  r, ok := state.Work[lease.EventID]
-  if !ok { return false, ErrWorkNotFound }
-  if err := verifyAdmission(ctx, r, lease, signed, s.verifier, now); err != nil { return false, err }
-  r.Admission = &governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
-  r.LifecycleState = agent.StateExecuting
-  r.LifecycleVersion++
-  r.LifecycleUpdatedAt = now
-  state.Work[r.Event.ID] = r
-  out = r
-  return true, nil
- })
- return out, err
+	signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
+	var out WorkRecord
+	err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
+		r, ok := state.Work[lease.EventID]
+		if !ok {
+			return false, ErrWorkNotFound
+		}
+		if err := verifyAdmission(ctx, r, lease, signed, s.verifier, now); err != nil {
+			return false, err
+		}
+		r.Admission = &governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
+		r.LifecycleState = agent.StateExecuting
+		r.LifecycleVersion++
+		r.LifecycleUpdatedAt = now
+		state.Work[r.Event.ID] = r
+		out = r
+		return true, nil
+	})
+	return out, err
 }
 
 // NewFileStoreWithGovernance configures a host-owned admission trust root.
 func NewFileStoreWithGovernance(path string, verifier governance.Verifier) (*FileStore, error) {
- s, err := NewFileStore(path)
- if err != nil { return nil, err }
- s.verifier = verifier.Clone()
- return s, nil
+	s, err := NewFileStore(path)
+	if err != nil {
+		return nil, err
+	}
+	s.verifier = verifier.Clone()
+	return s, nil
 }

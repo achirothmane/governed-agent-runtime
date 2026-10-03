@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/achirothmane/governed-agent-runtime/internal/agent"
- "github.com/achirothmane/governed-agent-runtime/internal/governance"
+	"github.com/achirothmane/governed-agent-runtime/internal/governance"
 )
 
 type Event struct {
@@ -91,19 +91,19 @@ func (b PlanBinding) Validate() error {
 }
 
 type WorkRecord struct {
- Admission *governance.SignedAdmission `json:"admission,omitempty"`
-	Sequence           uint64       `json:"sequence"`
-	Event              Event        `json:"event"`
-	State              WorkState    `json:"state"`
-	LifecycleState     agent.State  `json:"lifecycle_state"`
-	LifecycleVersion   uint64       `json:"lifecycle_version"`
-	LifecycleUpdatedAt time.Time    `json:"lifecycle_updated_at"`
-	Plan               *PlanBinding `json:"plan,omitempty"`
-	PlanBoundAt        *time.Time   `json:"plan_bound_at,omitempty"`
-	LeaseOwner         string       `json:"lease_owner,omitempty"`
-	LeaseEpoch         uint64       `json:"lease_epoch"`
-	LeaseExpiresAt     time.Time    `json:"lease_expires_at,omitempty"`
-	CompletedAt        *time.Time   `json:"completed_at,omitempty"`
+	Admission          *governance.SignedAdmission `json:"admission,omitempty"`
+	Sequence           uint64                      `json:"sequence"`
+	Event              Event                       `json:"event"`
+	State              WorkState                   `json:"state"`
+	LifecycleState     agent.State                 `json:"lifecycle_state"`
+	LifecycleVersion   uint64                      `json:"lifecycle_version"`
+	LifecycleUpdatedAt time.Time                   `json:"lifecycle_updated_at"`
+	Plan               *PlanBinding                `json:"plan,omitempty"`
+	PlanBoundAt        *time.Time                  `json:"plan_bound_at,omitempty"`
+	LeaseOwner         string                      `json:"lease_owner,omitempty"`
+	LeaseEpoch         uint64                      `json:"lease_epoch"`
+	LeaseExpiresAt     time.Time                   `json:"lease_expires_at,omitempty"`
+	CompletedAt        *time.Time                  `json:"completed_at,omitempty"`
 }
 
 type LeaseToken struct {
@@ -131,7 +131,7 @@ var (
 )
 
 type Store interface {
- BeginExecution(context.Context, LeaseToken, governance.SignedAdmission, time.Time) (WorkRecord, error)
+	BeginExecution(context.Context, LeaseToken, governance.SignedAdmission, time.Time) (WorkRecord, error)
 	Enqueue(context.Context, Event) (WorkRecord, error)
 	Claim(context.Context, string, time.Time, time.Duration) (ClaimedWork, error)
 	Renew(context.Context, LeaseToken, time.Time, time.Duration) (LeaseToken, error)
@@ -189,14 +189,25 @@ func samePlanBinding(a, b PlanBinding) bool {
 		bytes.Equal(a.Document, b.Document)
 }
 
-
 func verifyAdmission(ctx context.Context, r WorkRecord, lease LeaseToken, signed governance.SignedAdmission, verifier governance.Verifier, now time.Time) error {
- if !leaseMatches(r, lease, now) { return ErrLeaseLost }
- if r.LifecycleState != agent.StateWaitingForAdmission { return ErrInvalidLifecycleTransition }
- if r.Plan == nil { return ErrPlanRequired }
- if err := validatePlanBindingForWork(r, *r.Plan); err != nil { return err }
- _, err := verifier.Verify(ctx, signed, governance.Subject{AgentID: string(r.Event.AgentID), EventID: r.Event.ID, WorkerID: lease.WorkerID, LeaseEpoch: lease.Epoch, PlanDigest: fmt.Sprintf("%x", r.Plan.Digest)}, now)
- if err != nil { return err }
- if verifier.Clock == nil || !leaseMatches(r, lease, verifier.Clock()) { return ErrLeaseLost }
- return nil
+	if !leaseMatches(r, lease, now) {
+		return ErrLeaseLost
+	}
+	if r.LifecycleState != agent.StateWaitingForAdmission {
+		return ErrInvalidLifecycleTransition
+	}
+	if r.Plan == nil {
+		return ErrPlanRequired
+	}
+	if err := validatePlanBindingForWork(r, *r.Plan); err != nil {
+		return err
+	}
+	_, err := verifier.Verify(ctx, signed, governance.Subject{AgentID: string(r.Event.AgentID), EventID: r.Event.ID, WorkerID: lease.WorkerID, LeaseEpoch: lease.Epoch, PlanDigest: fmt.Sprintf("%x", r.Plan.Digest)}, now)
+	if err != nil {
+		return err
+	}
+	if verifier.Clock == nil || !leaseMatches(r, lease, verifier.Clock()) {
+		return ErrLeaseLost
+	}
+	return nil
 }

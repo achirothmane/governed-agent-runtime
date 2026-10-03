@@ -12,15 +12,15 @@ import (
 	"time"
 
 	"github.com/achirothmane/governed-agent-runtime/internal/agent"
- "github.com/achirothmane/governed-agent-runtime/internal/governance"
+	"github.com/achirothmane/governed-agent-runtime/internal/governance"
 )
 
 //go:embed schema/postgres.sql
 var postgresSchema string
 
 type PostgresStore struct {
- verifier governance.Verifier
-	db *sql.DB
+	verifier governance.Verifier
+	db       *sql.DB
 }
 
 var _ Store = (*PostgresStore)(nil)
@@ -271,9 +271,9 @@ func (s *PostgresStore) Transition(ctx context.Context, lease LeaseToken, target
 		return WorkRecord{}, fmt.Errorf("%w: %s -> %s", ErrInvalidLifecycleTransition, record.LifecycleState, target)
 	}
 	if target == agent.StateExecuting {
- return WorkRecord{}, governance.ErrAdmission
- }
- if target == agent.StateWaitingForAdmission && record.Plan == nil {
+		return WorkRecord{}, governance.ErrAdmission
+	}
+	if target == agent.StateWaitingForAdmission && record.Plan == nil {
 		return WorkRecord{}, ErrPlanRequired
 	}
 
@@ -478,8 +478,8 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		leaseEpoch           int64
 		leaseExpiresAtNS     sql.NullInt64
 		completedAtNS        sql.NullInt64
-		admissionDocument []byte
-  eventDigest          []byte
+		admissionDocument    []byte
+		eventDigest          []byte
 	)
 
 	dest := []any{
@@ -503,7 +503,7 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		&leaseEpoch,
 		&leaseExpiresAtNS,
 		&completedAtNS,
-  &admissionDocument,
+		&admissionDocument,
 	}
 	if withDigest {
 		dest = append(dest, &eventDigest)
@@ -568,11 +568,13 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 	}
 
 	if len(admissionDocument) > 0 {
- var signed governance.SignedAdmission
- if err := json.Unmarshal(admissionDocument, &signed); err != nil { return WorkRecord{}, nil, err }
- record.Admission = &signed
- }
- return record, eventDigest, nil
+		var signed governance.SignedAdmission
+		if err := json.Unmarshal(admissionDocument, &signed); err != nil {
+			return WorkRecord{}, nil, err
+		}
+		record.Admission = &signed
+	}
+	return record, eventDigest, nil
 }
 
 func digestEvent(event Event) ([]byte, error) {
@@ -584,30 +586,43 @@ func digestEvent(event Event) ([]byte, error) {
 	return sum[:], nil
 }
 
-
 func (s *PostgresStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, now time.Time) (WorkRecord, error) {
- signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
- tx, err := s.db.BeginTx(ctx, nil)
- if err != nil { return WorkRecord{}, err }
- defer tx.Rollback()
- r, err := getPostgresWorkForUpdate(ctx, tx, lease.EventID)
- if err != nil { return WorkRecord{}, err }
- if err := verifyAdmission(ctx, r, lease, signed, s.verifier, now); err != nil { return WorkRecord{}, err }
- document, err := json.Marshal(signed)
- if err != nil { return WorkRecord{}, err }
- if _, err := tx.ExecContext(ctx, `UPDATE agent_runtime_work SET admission_document = $1, lifecycle_state = 'EXECUTING', lifecycle_version = lifecycle_version + 1, lifecycle_updated_at_ns = $2 WHERE event_id = $3`, document, now.UnixNano(), lease.EventID); err != nil { return WorkRecord{}, err }
- r.Admission = &governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
- r.LifecycleState = agent.StateExecuting
- r.LifecycleVersion++
- r.LifecycleUpdatedAt = now
- if err := tx.Commit(); err != nil { return WorkRecord{}, err }
- return r, nil
+	signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return WorkRecord{}, err
+	}
+	defer tx.Rollback()
+	r, err := getPostgresWorkForUpdate(ctx, tx, lease.EventID)
+	if err != nil {
+		return WorkRecord{}, err
+	}
+	if err := verifyAdmission(ctx, r, lease, signed, s.verifier, now); err != nil {
+		return WorkRecord{}, err
+	}
+	document, err := json.Marshal(signed)
+	if err != nil {
+		return WorkRecord{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE agent_runtime_work SET admission_document = $1, lifecycle_state = 'EXECUTING', lifecycle_version = lifecycle_version + 1, lifecycle_updated_at_ns = $2 WHERE event_id = $3`, document, now.UnixNano(), lease.EventID); err != nil {
+		return WorkRecord{}, err
+	}
+	r.Admission = &governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
+	r.LifecycleState = agent.StateExecuting
+	r.LifecycleVersion++
+	r.LifecycleUpdatedAt = now
+	if err := tx.Commit(); err != nil {
+		return WorkRecord{}, err
+	}
+	return r, nil
 }
 
 // NewPostgresStoreWithGovernance configures a host-owned admission trust root.
 func NewPostgresStoreWithGovernance(db *sql.DB, verifier governance.Verifier) (*PostgresStore, error) {
- s, err := NewPostgresStore(db)
- if err != nil { return nil, err }
- s.verifier = verifier.Clone()
- return s, nil
+	s, err := NewPostgresStore(db)
+	if err != nil {
+		return nil, err
+	}
+	s.verifier = verifier.Clone()
+	return s, nil
 }
