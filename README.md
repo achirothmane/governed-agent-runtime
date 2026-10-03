@@ -34,4 +34,19 @@ The first target is a persistent release engineer that wakes on GitHub events, d
 
 ## Status
 
-Bootstrap in progress. The first implementation milestone is the agent contract and deterministic lifecycle.
+Implemented and tested:
+
+- Durable event ownership, fenced takeover and lease-bound agent lifecycle.
+- File and transactional PostgreSQL stores.
+- Model plans bound to exact persisted bytes and SHA-256 digests.
+- Externally signed admission verified against a host-configured trust root.
+- Authenticated HTTP admission issuance and live witness revalidation.
+
+The admission service is exercised over real loopback HTTP in file/PostgreSQL
+integration tests. It uses a bounded volatile issuance ledger and host-owned
+policy callbacks. It is not a deployed production authority service, and the
+release engineer does not yet dispatch GitHub tools.
+
+See [Aegis admission](docs/aegis-admission.md) and
+[remote admission](docs/remote-admission.md) for contracts and proof limits.
+
