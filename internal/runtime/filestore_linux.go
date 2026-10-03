@@ -22,6 +22,7 @@ type fileState struct {
 }
 
 type FileStore struct {
+ verifier governance.Verifier
 	path     string
 	lockPath string
 }
@@ -363,13 +364,13 @@ func (s *FileStore) persistLocked(state *fileState) error {
 }
 
 
-func (s *FileStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, verifier governance.Verifier, now time.Time) (WorkRecord, error) {
+func (s *FileStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, now time.Time) (WorkRecord, error) {
  signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
  var out WorkRecord
  err := s.withLockedState(ctx, func(state *fileState) (bool, error) {
   r, ok := state.Work[lease.EventID]
   if !ok { return false, ErrWorkNotFound }
-  if err := verifyAdmission(ctx, r, lease, signed, verifier, now); err != nil { return false, err }
+  if err := verifyAdmission(ctx, r, lease, signed, s.verifier, now); err != nil { return false, err }
   r.Admission = &governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
   r.LifecycleState = agent.StateExecuting
   r.LifecycleVersion++
@@ -379,4 +380,12 @@ func (s *FileStore) BeginExecution(ctx context.Context, lease LeaseToken, signed
   return true, nil
  })
  return out, err
+}
+
+// NewFileStoreWithGovernance configures a host-owned admission trust root.
+func NewFileStoreWithGovernance(path string, verifier governance.Verifier) (*FileStore, error) {
+ s, err := NewFileStore(path)
+ if err != nil { return nil, err }
+ s.verifier = verifier.Clone()
+ return s, nil
 }

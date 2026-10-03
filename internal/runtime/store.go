@@ -131,7 +131,7 @@ var (
 )
 
 type Store interface {
- BeginExecution(context.Context, LeaseToken, governance.SignedAdmission, governance.Verifier, time.Time) (WorkRecord, error)
+ BeginExecution(context.Context, LeaseToken, governance.SignedAdmission, time.Time) (WorkRecord, error)
 	Enqueue(context.Context, Event) (WorkRecord, error)
 	Claim(context.Context, string, time.Time, time.Duration) (ClaimedWork, error)
 	Renew(context.Context, LeaseToken, time.Time, time.Duration) (LeaseToken, error)

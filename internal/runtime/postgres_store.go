@@ -19,6 +19,7 @@ import (
 var postgresSchema string
 
 type PostgresStore struct {
+ verifier governance.Verifier
 	db *sql.DB
 }
 
@@ -584,14 +585,14 @@ func digestEvent(event Event) ([]byte, error) {
 }
 
 
-func (s *PostgresStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, verifier governance.Verifier, now time.Time) (WorkRecord, error) {
+func (s *PostgresStore) BeginExecution(ctx context.Context, lease LeaseToken, signed governance.SignedAdmission, now time.Time) (WorkRecord, error) {
  signed = governance.SignedAdmission{Document: append([]byte(nil), signed.Document...), Signature: append([]byte(nil), signed.Signature...)}
  tx, err := s.db.BeginTx(ctx, nil)
  if err != nil { return WorkRecord{}, err }
  defer tx.Rollback()
  r, err := getPostgresWorkForUpdate(ctx, tx, lease.EventID)
  if err != nil { return WorkRecord{}, err }
- if err := verifyAdmission(ctx, r, lease, signed, verifier, now); err != nil { return WorkRecord{}, err }
+ if err := verifyAdmission(ctx, r, lease, signed, s.verifier, now); err != nil { return WorkRecord{}, err }
  document, err := json.Marshal(signed)
  if err != nil { return WorkRecord{}, err }
  if _, err := tx.ExecContext(ctx, `UPDATE agent_runtime_work SET admission_document = $1, lifecycle_state = 'EXECUTING', lifecycle_version = lifecycle_version + 1, lifecycle_updated_at_ns = $2 WHERE event_id = $3`, document, now.UnixNano(), lease.EventID); err != nil { return WorkRecord{}, err }
@@ -601,4 +602,12 @@ func (s *PostgresStore) BeginExecution(ctx context.Context, lease LeaseToken, si
  r.LifecycleUpdatedAt = now
  if err := tx.Commit(); err != nil { return WorkRecord{}, err }
  return r, nil
+}
+
+// NewPostgresStoreWithGovernance configures a host-owned admission trust root.
+func NewPostgresStoreWithGovernance(db *sql.DB, verifier governance.Verifier) (*PostgresStore, error) {
+ s, err := NewPostgresStore(db)
+ if err != nil { return nil, err }
+ s.verifier = verifier.Clone()
+ return s, nil
 }

@@ -106,3 +106,8 @@ func (v Verifier) Verify(ctx context.Context, signed SignedAdmission, subject Su
 	}
 	return a, ctx.Err()
 }
+
+func (v Verifier) Clone() Verifier {
+ v.PublicKey = append(ed25519.PublicKey(nil), v.PublicKey...)
+ return v
+}

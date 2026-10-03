@@ -21,6 +21,8 @@ The issuer key and current-witness resolver are host configuration, never model
 output. Tests have a local signing fixture; production code does not issue
 authority. The resolver must return trusted current state, not echo the request.
 The boundary clock passed to store operations must be trusted host time.
+The verifier also requires a trusted clock and checks expiry again after the
+current-state lookup; the store rechecks lease validity using that clock.
 
 This change is an executable admission consumer of Aegis shared contracts,
 not a deployed connection to an Aegis authorization service. Admission is not

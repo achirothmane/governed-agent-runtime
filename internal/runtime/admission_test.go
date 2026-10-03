@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+ "bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
@@ -36,7 +37,8 @@ func admissionFixture(t *testing.T, s Store, lease LeaseToken, now time.Time) (g
 	v := governance.Verifier{PublicKey: pub, Clock: func() time.Time { return now }, Current: func(context.Context, governance.Admission) (governance.Witness, error) {
 		return a.Witness, nil
 	}}
-	return signed, v, a, key
+	configureTestVerifier(s, v)
+ return signed, v, a, key
 }
 
 func signAdmission(t *testing.T, a governance.Admission, key ed25519.PrivateKey) governance.SignedAdmission {
@@ -50,8 +52,8 @@ func signAdmission(t *testing.T, a governance.Admission, key ed25519.PrivateKey)
 
 func beginTestExecution(t *testing.T, s Store, lease LeaseToken, now time.Time) (WorkRecord, error) {
 	t.Helper()
-	signed, v, _, _ := admissionFixture(t, s, lease, now)
-	return s.BeginExecution(context.Background(), lease, signed, v, now)
+	signed, _, _, _ := admissionFixture(t, s, lease, now)
+	return s.BeginExecution(context.Background(), lease, signed, now)
 }
 
 func testAdmissionStore(t *testing.T, s Store) {
@@ -100,7 +102,7 @@ func testAdmissionStore(t *testing.T, s Store) {
 		t.Run(tc.name, func(t *testing.T) {
 			bad := a
 			tc.change(&bad)
-			if _, err := s.BeginExecution(ctx, claim.Lease, signAdmission(t, bad, key), v, now); err == nil {
+			if _, err := s.BeginExecution(ctx, claim.Lease, signAdmission(t, bad, key), now); err == nil {
 				t.Fatal("invalid admission accepted")
 			}
 			r, err := s.Get(ctx, claim.Lease.EventID)
@@ -110,7 +112,7 @@ func testAdmissionStore(t *testing.T, s Store) {
 		})
 	}
 	badSignature := governance.SignedAdmission{Document: signed.Document, Signature: make([]byte, ed25519.SignatureSize)}
-	if _, err := s.BeginExecution(ctx, claim.Lease, badSignature, v, now); err == nil {
+	if _, err := s.BeginExecution(ctx, claim.Lease, badSignature, now); err == nil {
 		t.Fatal("bad signature accepted")
 	}
 
@@ -121,21 +123,36 @@ func testAdmissionStore(t *testing.T, s Store) {
   boundaryTime = now.Add(2*time.Minute)
   return a.Witness, nil
  }
- if _, err := s.BeginExecution(ctx, claim.Lease, signed, slow, now); err == nil {
+ configureTestVerifier(s, slow)
+ if _, err := s.BeginExecution(ctx, claim.Lease, signed, now); err == nil {
   t.Fatal("admission expired during current-state lookup accepted")
  }
-	r, err := s.BeginExecution(ctx, claim.Lease, signed, v, now)
+ configureTestVerifier(s, v)
+	r, err := s.BeginExecution(ctx, claim.Lease, signed, now)
 	if err != nil || r.LifecycleState != agent.StateExecuting || r.Admission == nil {
 		t.Fatalf("valid admission rejected: %+v %v", r, err)
 	}
-	if _, err := s.BeginExecution(ctx, claim.Lease, signed, v, now); err == nil {
+
+ var reopened Store
+ switch concrete := s.(type) {
+ case *FileStore:
+  reopened, err = NewFileStoreWithGovernance(concrete.path, v)
+ case *PostgresStore:
+  reopened, err = NewPostgresStoreWithGovernance(concrete.db, v)
+ }
+ if err != nil { t.Fatal(err) }
+ persisted, err := reopened.Get(ctx, claim.Lease.EventID)
+ if err != nil || persisted.Admission == nil || !bytes.Equal(persisted.Admission.Document, signed.Document) || !bytes.Equal(persisted.Admission.Signature, signed.Signature) {
+  t.Fatalf("exact admission lost after reopen: %+v %v", persisted, err)
+ }
+	if _, err := s.BeginExecution(ctx, claim.Lease, signed, now); err == nil {
 		t.Fatal("execution admission replay accepted")
 	}
 	takeover, err := s.Claim(ctx, "worker-b", now.Add(3*time.Minute), time.Minute)
 	if err != nil || takeover.Record.LifecycleState != agent.StateUnknown {
 		t.Fatalf("takeover must preserve uncertainty: %+v %v", takeover, err)
 	}
-	if _, err := s.BeginExecution(ctx, claim.Lease, signed, v, now.Add(3*time.Minute)); !errors.Is(err, ErrLeaseLost) {
+	if _, err := s.BeginExecution(ctx, claim.Lease, signed, now.Add(3*time.Minute)); !errors.Is(err, ErrLeaseLost) {
 		t.Fatalf("old worker admission: %v", err)
 	}
 }
@@ -146,4 +163,14 @@ func TestFileStoreAdmission(t *testing.T) {
 
 func TestPostgresStoreAdmission(t *testing.T) {
  testAdmissionStore(t, newPostgresTestStore(t))
+}
+
+// Test-only fixture setup; production callers configure immutable store options.
+func configureTestVerifier(s Store, v governance.Verifier) {
+ switch concrete := s.(type) {
+ case *FileStore:
+  concrete.verifier = v.Clone()
+ case *PostgresStore:
+  concrete.verifier = v.Clone()
+ }
 }
