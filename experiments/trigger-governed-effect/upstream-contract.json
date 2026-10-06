@@ -1,0 +1,45 @@
+{
+  "gate": "TRIGGER_WAITPOINT_EXTENSION_CONTRACT_V0",
+  "upstream": {
+    "repository": "triggerdotdev/trigger.dev",
+    "commit": "b983e069851a1e0ed1c558012103bf67117cdb96",
+    "sdkVersion": "4.7.3"
+  },
+  "sources": [
+    {
+      "path": "packages/trigger-sdk/src/v3/wait.ts",
+      "gitBlobSha1": "934870b277e14cf09558481450d164d711c9e337",
+      "requires": [
+        "function createToken(",
+        "isCached",
+        "async function retrieveToken",
+        "async function completeToken",
+        "idempotencyKey?: string",
+        "you will get the original waitpoint back"
+      ]
+    },
+    {
+      "path": "apps/webapp/app/routes/api.v1.waitpoints.tokens.ts",
+      "gitBlobSha1": "28b6db66785981c7ae338dd7601eca9d79653095",
+      "requires": [
+        "engine.createManualWaitpoint",
+        "idempotencyKey: body.idempotencyKey",
+        "isCached: result.isCached"
+      ]
+    },
+    {
+      "path": "packages/trigger-sdk/package.json",
+      "gitBlobSha1": "f1c8823ef9d9bda457ad5ddd422f3aa394179050",
+      "requires": [
+        "\"name\": \"@trigger.dev/sdk\"",
+        "\"version\": \"4.7.3\""
+      ]
+    }
+  ],
+  "nonClaims": [
+    "No exactly-once guarantee for arbitrary Trigger.dev task code",
+    "No complete mediation for direct provider calls outside governedEffect()",
+    "No production-grade Trigger.dev integration evidence yet",
+    "No new Aegis kernel primitive"
+  ]
+}
