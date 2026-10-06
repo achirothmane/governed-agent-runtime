@@ -7,7 +7,7 @@ const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
 function gitBlobSha1(value) {
   const bytes = Buffer.from(value, "utf8");
   return createHash("sha1")
-    .update(Buffer.from("blob " + bytes.length + "\\0", "utf8"))
+    .update(Buffer.from("blob " + bytes.length + "\0", "utf8"))
     .update(bytes)
     .digest("hex");
 }
@@ -31,7 +31,7 @@ for (const source of manifest.sources) {
     }
   }
 
-  process.stdout.write("PASS " + source.path + " " + actualSha + "\\n");
+  process.stdout.write("PASS " + source.path + " " + actualSha + "\n");
 }
 
-process.stdout.write("PASS upstream " + manifest.upstream.repository + "@" + manifest.upstream.commit + " SDK " + manifest.upstream.sdkVersion + "\\n");
+process.stdout.write("PASS upstream " + manifest.upstream.repository + "@" + manifest.upstream.commit + " SDK " + manifest.upstream.sdkVersion + "\n");
