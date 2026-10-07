@@ -238,7 +238,7 @@ func TestPostgresStoreRejectsEventForWrongConversation(t *testing.T) {
 	_, store := openAgentServerPostgres(t)
 	_, record := seedPostgresConversationRun(t, store)
 	other := Conversation{
-		Ref: runtimesdk.ConversationRef{ID: "conv-2", AgentID: "agent-1", WorkspaceID: "workspace-1"},
+		Ref:       runtimesdk.ConversationRef{ID: "conv-2", AgentID: "agent-1", WorkspaceID: "workspace-1"},
 		CreatedAt: time.Now().UTC(),
 	}
 	if _, _, err := store.PutConversation(context.Background(), other); err != nil {
