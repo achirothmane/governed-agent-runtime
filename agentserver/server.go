@@ -27,6 +27,7 @@ const (
 type Config struct {
 	Provider          RuntimeProvider
 	Invoker           ToolInvoker
+	DurableInvoker    DurableToolInvoker
 	Store             Store
 	BearerToken       string
 	Clock             func() time.Time
@@ -38,6 +39,7 @@ type Config struct {
 type Service struct {
 	provider          RuntimeProvider
 	invoker           ToolInvoker
+	durableInvoker    DurableToolInvoker
 	store             Store
 	bearerToken       string
 	clock             func() time.Time
@@ -84,6 +86,7 @@ func New(config Config) (*Service, error) {
 	s := &Service{
 		provider:          config.Provider,
 		invoker:           invoker,
+		durableInvoker:    config.DurableInvoker,
 		store:             config.Store,
 		bearerToken:       config.BearerToken,
 		clock:             config.Clock,

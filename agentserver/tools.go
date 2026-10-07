@@ -13,7 +13,8 @@ import (
 )
 
 type toolInvokeRequest struct {
-	Arguments map[string]any `json:"arguments"`
+	InvocationID string         `json:"invocation_id,omitempty"`
+	Arguments    map[string]any `json:"arguments"`
 }
 
 type toolInvokeResponse struct {
@@ -22,12 +23,14 @@ type toolInvokeResponse struct {
 }
 
 type toolCallEvidence struct {
+	InvocationID    string              `json:"invocation_id,omitempty"`
 	Tool            runtimesdk.ToolName `json:"tool"`
 	SnapshotDigest  string              `json:"snapshot_digest"`
 	ArgumentsDigest string              `json:"arguments_digest"`
 }
 
 type toolResultEvidence struct {
+	InvocationID   string              `json:"invocation_id,omitempty"`
 	Tool           runtimesdk.ToolName `json:"tool"`
 	SnapshotDigest string              `json:"snapshot_digest"`
 	IsError        bool                `json:"is_error"`
@@ -35,13 +38,14 @@ type toolResultEvidence struct {
 }
 
 type toolFailureEvidence struct {
+	InvocationID   string              `json:"invocation_id,omitempty"`
 	Tool           runtimesdk.ToolName `json:"tool"`
 	SnapshotDigest string              `json:"snapshot_digest"`
 	Error          string              `json:"error"`
 }
 
 func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
-	if s.invoker == nil {
+	if s.invoker == nil && s.durableInvoker == nil {
 		writeError(w, http.StatusNotImplemented, "tool_invocation_unavailable", "server has no tool invocation boundary")
 		return
 	}
@@ -100,6 +104,36 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 	if request.Arguments == nil {
 		request.Arguments = map[string]any{}
 	}
+	request.InvocationID = strings.TrimSpace(request.InvocationID)
+	if s.durableInvoker != nil {
+		if request.InvocationID == "" {
+			writeError(w, http.StatusBadRequest, "invocation_id_required", "durable tool invocation requires invocation_id")
+			return
+		}
+		result, err := s.durableInvoker.Execute(
+			r.Context(),
+			record.ID,
+			record.ConversationID,
+			request.InvocationID,
+			tool,
+			request.Arguments,
+		)
+		if err != nil {
+			if errors.Is(err, mcptransport.ErrSnapshotMismatch) ||
+				errors.Is(err, mcptransport.ErrSnapshotStale) ||
+				errors.Is(err, mcptransport.ErrSnapshotUnknown) {
+				writeError(w, http.StatusConflict, "run_capability_changed", "tool capability snapshot changed before invocation")
+				return
+			}
+			s.writeBackendError(w, r, "durable_tool_invoke_failed", err)
+			return
+		}
+		// Durable activity/ledger evidence is produced by the Temporal worker,
+		// not by the HTTP request. Avoid inventing synchronous event evidence.
+		writeJSON(w, http.StatusOK, toolInvokeResponse{Result: result, EventPersisted: false})
+		return
+	}
+
 	argumentsDigest, err := digestJSON(request.Arguments)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_arguments", "tool arguments cannot be represented as JSON")
@@ -107,6 +141,7 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 	}
 
 	calledPayload, _ := json.Marshal(toolCallEvidence{
+		InvocationID:    request.InvocationID,
 		Tool:            tool.Name,
 		SnapshotDigest:  tool.SnapshotDigest,
 		ArgumentsDigest: argumentsDigest,
@@ -125,6 +160,7 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 	result, err := s.invoker.Invoke(r.Context(), tool, request.Arguments)
 	if err != nil {
 		failedPayload, _ := json.Marshal(toolFailureEvidence{
+			InvocationID:   request.InvocationID,
 			Tool:           tool.Name,
 			SnapshotDigest: tool.SnapshotDigest,
 			Error:          err.Error(),
@@ -154,6 +190,7 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	returnedPayload, _ := json.Marshal(toolResultEvidence{
+		InvocationID:   request.InvocationID,
 		Tool:           tool.Name,
 		SnapshotDigest: tool.SnapshotDigest,
 		IsError:        result.IsError,
