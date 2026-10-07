@@ -106,9 +106,20 @@ Runtime A5 connects the first real independent engine, Data Engine:
 - capability changes rejected before raw arguments leave Agent Server;
 - a second snapshot check immediately before invocation closes the discovery/invoke race;
 - `tool.called`, `tool.returned`, and `tool.failed` evidence without copying raw rows/results into the event log;
-- synchronous A5 invocation deliberately limited to read-only/idempotent work; durable Temporal activity execution remains A5.1.
+- synchronous A5 invocation deliberately limited to read-only/idempotent work.
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), and [Data Engine A5](docs/data-engine-a5.md).
+Runtime A5.1 moves that read-only tool execution onto Temporal:
+
+- explicit `invocation_id` as the durable tool-execution identity;
+- deterministic Temporal workflow ID `ai-native-tool/<run>/<invocation>`;
+- raw arguments/results persisted in PostgreSQL instead of copied into Temporal workflow input;
+- exact run/tool/snapshot/arguments binding checked before activity execution;
+- completed results reused without reinvoking MCP after retry/replay;
+- capability-change failures made non-retryable;
+- execution evidence emitted by the Temporal activity rather than invented by the HTTP request;
+- mutating tools refused by this retry contract.
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md).
 
 ## Effect boundary
 
