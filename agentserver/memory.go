@@ -69,19 +69,15 @@ func (s *MemoryStore) PutRun(_ context.Context, record RunRecord) (RunRecord, bo
 	if s == nil {
 		return RunRecord{}, false, errors.New("memory store is nil")
 	}
-	if record.ID == "" || record.ConversationID == "" || record.AgentID == "" || record.InputDigest == "" || record.CreatedAt.IsZero() {
-		return RunRecord{}, false, errors.New("run record is incomplete")
-	}
-	if record.Handle.ID != record.ID {
-		return RunRecord{}, false, errors.New("run record handle id mismatch")
+	if err := record.Validate(); err != nil {
+		return RunRecord{}, false, err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing, ok := s.runs[record.ID]
 	if ok {
-		if existing.ConversationID != record.ConversationID || existing.AgentID != record.AgentID ||
-			existing.InputDigest != record.InputDigest || existing.Handle.Fingerprint != record.Handle.Fingerprint {
+		if !sameRunBinding(existing, record) {
 			return RunRecord{}, false, fmt.Errorf("%w: run %s", ErrConflict, record.ID)
 		}
 		return existing, false, nil
