@@ -38,6 +38,9 @@ func (r InvocationRef) Validate() error {
 	if strings.TrimSpace(r.InvocationID) == "" {
 		return errors.New("invocation id is required")
 	}
+	if len(r.InvocationID) > 128 {
+		return errors.New("invocation id exceeds 128 bytes")
+	}
 	if strings.TrimSpace(string(r.RunID)) == "" || strings.TrimSpace(string(r.ConversationID)) == "" {
 		return errors.New("run id and conversation id are required")
 	}
@@ -50,8 +53,8 @@ func (r InvocationRef) Validate() error {
 	if !r.Tool.ReadOnly {
 		return errors.New("A5.1 supports server-admitted read-only tools only")
 	}
-	if strings.TrimSpace(r.Tool.SnapshotDigest) == "" {
-		return errors.New("tool snapshot digest is required")
+	if len(strings.TrimSpace(r.Tool.SnapshotDigest)) != 64 {
+		return errors.New("tool snapshot digest must be SHA-256 hex")
 	}
 	if len(r.ArgumentsDigest) != 64 {
 		return errors.New("arguments digest must be SHA-256 hex")
