@@ -84,6 +84,50 @@ type RunRecord struct {
 	CreatedAt      time.Time                 `json:"created_at"`
 }
 
+func (r RunRecord) Validate() error {
+	if strings.TrimSpace(string(r.ID)) == "" {
+		return errors.New("run id is required")
+	}
+	if strings.TrimSpace(string(r.ConversationID)) == "" {
+		return errors.New("run conversation id is required")
+	}
+	if strings.TrimSpace(string(r.AgentID)) == "" {
+		return errors.New("run agent id is required")
+	}
+	if strings.TrimSpace(r.Input) == "" {
+		return errors.New("run input is required")
+	}
+	if strings.TrimSpace(r.InputDigest) == "" || r.InputDigest != InputDigest(r.Input) {
+		return errors.New("run input digest does not match input")
+	}
+	if r.Handle.ID != r.ID {
+		return errors.New("run handle id does not match run id")
+	}
+	if strings.TrimSpace(r.Handle.Backend) == "" || strings.TrimSpace(r.Handle.Fingerprint) == "" {
+		return errors.New("run handle binding is incomplete")
+	}
+	switch r.Handle.State {
+	case runtimesdk.RunQueued, runtimesdk.RunRunning, runtimesdk.RunWaiting,
+		runtimesdk.RunSucceeded, runtimesdk.RunFailed, runtimesdk.RunCanceled, runtimesdk.RunUnknown:
+	default:
+		return fmt.Errorf("unsupported run state %q", r.Handle.State)
+	}
+	if r.CreatedAt.IsZero() {
+		return errors.New("run created_at is required")
+	}
+	return nil
+}
+
+func sameRunBinding(a, b RunRecord) bool {
+	return a.ID == b.ID &&
+		a.ConversationID == b.ConversationID &&
+		a.AgentID == b.AgentID &&
+		a.InputDigest == b.InputDigest &&
+		a.Handle.Backend == b.Handle.Backend &&
+		a.Handle.ExternalID == b.Handle.ExternalID &&
+		a.Handle.Fingerprint == b.Handle.Fingerprint
+}
+
 func NewRunRecord(conversation Conversation, input string, handle runtimesdk.RunHandle, at time.Time) (RunRecord, error) {
 	if err := conversation.Validate(); err != nil {
 		return RunRecord{}, fmt.Errorf("conversation: %w", err)
@@ -98,7 +142,7 @@ func NewRunRecord(conversation Conversation, input string, handle runtimesdk.Run
 		return RunRecord{}, errors.New("run created_at is required")
 	}
 	sum := sha256.Sum256([]byte(input))
-	return RunRecord{
+	record := RunRecord{
 		ID:             handle.ID,
 		ConversationID: conversation.Ref.ID,
 		AgentID:        conversation.Ref.AgentID,
@@ -106,7 +150,11 @@ func NewRunRecord(conversation Conversation, input string, handle runtimesdk.Run
 		InputDigest:    hex.EncodeToString(sum[:]),
 		Handle:         handle,
 		CreatedAt:      at,
-	}, nil
+	}
+	if err := record.Validate(); err != nil {
+		return RunRecord{}, err
+	}
+	return record, nil
 }
 
 func InputDigest(input string) string {

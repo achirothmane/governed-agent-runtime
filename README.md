@@ -79,7 +79,26 @@ Runtime A4 adds the Agent Server service boundary:
 - strict bounded JSON request decoding and explicit conflict / retry semantics;
 - pluggable server metadata/event `Store`, with a concurrency-safe in-memory reference implementation.
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md).
+Runtime A4.1 adds a restart-durable PostgreSQL Agent Server store:
+
+- durable conversations and immutable agent/workspace bindings;
+- durable run metadata and execution identity bindings;
+- transactionally allocated, gap-free event sequence numbers per conversation;
+- ordered event replay after process restart;
+- database-level foreign keys preventing events from being attached to the wrong run/conversation;
+- polling-based wakeups that preserve correctness across multiple server processes without pinning one database connection per SSE client;
+- the in-memory store remains available only as a local/test reference implementation.
+
+Runtime A4.1 adds restart-durable Agent Server persistence in PostgreSQL:
+
+- durable conversation → agent → workspace bindings;
+- durable run metadata, input digests, and exact runtime fingerprints;
+- per-conversation transactional event sequencing;
+- replay after process/store reconstruction;
+- idempotent run inserts and fail-closed binding conflicts;
+- in-process watchers treated only as wakeup hints, never as durable event evidence.
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md).
 
 ## Effect boundary
 

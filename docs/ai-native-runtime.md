@@ -101,23 +101,31 @@ The first implementation slice introduces:
 7. runtime verification that a backend cannot silently change run identity or the bound request fingerprint.
 8. event-envelope contracts for the future Agent Server and durable event stream.
 
-## Next slices
+## Runtime slices
 
-### A2 — Temporal adapter
+### A1 — Runtime contracts ✅
 
-Implement a production adapter against Temporal Go SDK. The adapter will map runtime run IDs to workflow IDs, preserve the run fingerprint in workflow input/search metadata, expose signals/cancellation, and return `UNKNOWN` rather than fabricate state when Temporal cannot prove the run outcome.
+Portable agents, tools, workspaces, conversations, run identity, event envelopes, and the `ExecutionBackend` boundary.
 
-### A3 — MCP transport
+### A2 — Temporal durable backend ✅
 
-Implement MCP discovery and invocation behind the SDK tool boundary. Add capability snapshots so a run is bound to the tool surface that was actually admitted at start time.
+Runtime RunID → Temporal workflow identity, exact fingerprint binding, duplicate-start reconciliation, inspect/signal/cancel, and explicit UNKNOWN semantics.
 
-### A4 — Agent Server
+### A3 — MCP transport ✅
 
-Expose conversations and runs over REST/WebSocket (or equivalent streaming transport) while keeping the SDK as the canonical contract. The browser client and AI Native Engineering UI consume the server; they do not own runtime semantics.
+Official MCP transport, canonical capability snapshots, snapshot digests bound into run identity, fail-closed stale-snapshot handling, and normalized tool results.
+
+### A4 — Agent Server ✅
+
+Authenticated REST, conversations, run start/inspect, signal/cancel, replayable SSE, strict request decoding, and server-owned runtime construction.
+
+### A4.1 — PostgreSQL Agent Server store ✅
+
+Restart-durable conversations, immutable run bindings, transactionally ordered per-conversation events, and replayable durable cursors without depending on process memory.
 
 ### A5 — First engine integration
 
-Connect one real engine end-to-end. Data Engine is the preferred first integration because it can begin with read-only/profile operations before introducing mutating effects.
+Connect one real engine end-to-end. Data Engine remains the preferred first integration because read-only profiling can prove the service/runtime/engine path before mutating data effects are introduced.
 
 ## Architectural rules
 
