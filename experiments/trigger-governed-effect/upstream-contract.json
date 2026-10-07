@@ -1,5 +1,5 @@
 {
-  "gate": "TRIGGER_WAITPOINT_EXTENSION_CONTRACT_V0",
+  "gate": "TRIGGER_WAITPOINT_EXTENSION_CONTRACT_V0_PASS",
   "upstream": {
     "repository": "triggerdotdev/trigger.dev",
     "commit": "b983e069851a1e0ed1c558012103bf67117cdb96",
@@ -39,7 +39,16 @@
   "nonClaims": [
     "No exactly-once guarantee for arbitrary Trigger.dev task code",
     "No complete mediation for direct provider calls outside governedEffect()",
-    "No production-grade Trigger.dev integration evidence yet",
+    "No full deployed webapp/supervisor/SDK network-path proof yet",
+    "No guarantee for destinations without a trustworthy observer/native replay guard",
     "No new Aegis kernel primitive"
-  ]
+  ],
+  "disposition": "EXTENSION_FIRST__HARD_FORK_REJECTED_AT_V0",
+  "evidence": {
+    "deterministicFalsificationCases": 11,
+    "nativePostgresBoundary": "PASS",
+    "pinnedRunEngineRestart": "PASS",
+    "hardWorkerSigkillAfterCommit": "PASS",
+    "zeroRedispatchAfterObservedCommit": true
+  }
 }
