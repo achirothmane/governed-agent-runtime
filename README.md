@@ -119,7 +119,16 @@ Runtime A5.1 moves that read-only tool execution onto Temporal:
 - execution evidence emitted by the Temporal activity rather than invented by the HTTP request;
 - mutating tools refused by this retry contract.
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md).
+Runtime A5.2 turns the durable tool plane into a runnable composition:
+
+- `cmd/ai-native-tool-worker` wires Temporal + PostgreSQL + Data Engine MCP;
+- `temporaltools.NewWorker` validates and registers the real workflow/activity pair;
+- an opt-in integration proof starts a real Temporal dev server and worker;
+- the cross-repository gate calls the actual private Data Engine MCP service rather than an in-repo fake;
+- repeated invocation IDs recover the stored COMPLETE result without another activity execution.
+
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md).
 
 ## Effect boundary
 
