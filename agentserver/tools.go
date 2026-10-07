@@ -105,10 +105,35 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 		request.Arguments = map[string]any{}
 	}
 	request.InvocationID = strings.TrimSpace(request.InvocationID)
-	if s.durableInvoker != nil && request.InvocationID == "" {
-		writeError(w, http.StatusBadRequest, "invocation_id_required", "durable tool invocation requires invocation_id")
+	if s.durableInvoker != nil {
+		if request.InvocationID == "" {
+			writeError(w, http.StatusBadRequest, "invocation_id_required", "durable tool invocation requires invocation_id")
+			return
+		}
+		result, err := s.durableInvoker.Execute(
+			r.Context(),
+			record.ID,
+			record.ConversationID,
+			request.InvocationID,
+			tool,
+			request.Arguments,
+		)
+		if err != nil {
+			if errors.Is(err, mcptransport.ErrSnapshotMismatch) ||
+				errors.Is(err, mcptransport.ErrSnapshotStale) ||
+				errors.Is(err, mcptransport.ErrSnapshotUnknown) {
+				writeError(w, http.StatusConflict, "run_capability_changed", "tool capability snapshot changed before invocation")
+				return
+			}
+			s.writeBackendError(w, r, "durable_tool_invoke_failed", err)
+			return
+		}
+		// Durable activity/ledger evidence is produced by the Temporal worker,
+		// not by the HTTP request. Avoid inventing synchronous event evidence.
+		writeJSON(w, http.StatusOK, toolInvokeResponse{Result: result, EventPersisted: false})
 		return
 	}
+
 	argumentsDigest, err := digestJSON(request.Arguments)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_arguments", "tool arguments cannot be represented as JSON")
@@ -132,19 +157,7 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var result mcptransport.Result
-	if s.durableInvoker != nil {
-		result, err = s.durableInvoker.Execute(
-			r.Context(),
-			record.ID,
-			record.ConversationID,
-			request.InvocationID,
-			tool,
-			request.Arguments,
-		)
-	} else {
-		result, err = s.invoker.Invoke(r.Context(), tool, request.Arguments)
-	}
+	result, err := s.invoker.Invoke(r.Context(), tool, request.Arguments)
 	if err != nil {
 		failedPayload, _ := json.Marshal(toolFailureEvidence{
 			InvocationID:  request.InvocationID,
