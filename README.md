@@ -59,7 +59,17 @@ Runtime A2 adds a Temporal durable-execution adapter behind the same `ExecutionB
 - explicit `UNKNOWN` handling where workflow-chain continuity is not yet proven;
 - Temporal Go SDK v1.48.0, pinned to preserve the Go 1.25 toolchain boundary.
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md) and [Temporal Durable Backend A2](docs/temporal-backend.md).
+Runtime A3 adds an MCP transport boundary using the official MCP Go SDK:
+
+- deterministic capability snapshots for discovered MCP tool surfaces;
+- SHA-256 snapshot digests bound into runtime `ToolDescriptor` and therefore run fingerprints;
+- explicit rejection of tools not present in the admitted snapshot;
+- fail-closed invalidation after `tools/list_changed`;
+- normalized structured/unstructured results and input-required continuations;
+- remote MCP `ToolAnnotations` retained as descriptive hints, never trusted as runtime authority;
+- official MCP Go SDK v1.8.0 while preserving the Go 1.25 toolchain boundary.
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), and [MCP Transport A3](docs/mcp-transport.md).
 
 ## Effect boundary
 

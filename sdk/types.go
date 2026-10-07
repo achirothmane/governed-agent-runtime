@@ -32,10 +32,11 @@ const (
 )
 
 type ToolDescriptor struct {
-	Name     ToolName     `json:"name"`
-	Protocol ToolProtocol `json:"protocol"`
-	Endpoint string       `json:"endpoint,omitempty"`
-	ReadOnly bool         `json:"read_only"`
+	Name           ToolName     `json:"name"`
+	Protocol       ToolProtocol `json:"protocol"`
+	Endpoint       string       `json:"endpoint,omitempty"`
+	ReadOnly       bool         `json:"read_only"`
+	SnapshotDigest string       `json:"snapshot_digest,omitempty"`
 }
 
 func (t ToolDescriptor) Validate() error {
