@@ -87,3 +87,21 @@ A5.2 proves the **tool execution plane** end to end.
 It does not claim that the parent agent run is itself executing an autonomous reasoning loop. The integration proof seeds an already-bound parent run, because A6 owns model reasoning → tool selection → observation → next-decision semantics.
 
 This separation is intentional: A5.2 proves worker composition without smuggling an unfinished planner into the durable execution layer.
+
+
+## Falsification found during A5.2
+
+The first real cross-repository run failed with `durable tool result digest mismatch`.
+
+The cause was not a changed Data Engine result. PostgreSQL `JSONB` is allowed to reserialize nested JSON objects, so a digest computed from one physical JSON representation could differ after a semantically equivalent value was read back from the invocation ledger.
+
+A5.2 therefore changed durable result hashing to canonical semantic JSON before SHA-256. Equivalent object key ordering and insignificant JSON formatting now produce the same result digest.
+
+This bug was invisible to the in-memory A5.1 tests and is the reason the real PostgreSQL + Temporal + Data Engine proof is retained as a separate gate.
+
+## CI authority
+
+Merge requires both:
+
+1. the runtime repository gate: module reproducibility, format check, and `go test -race ./...` with PostgreSQL 16;
+2. the cross-repository Data Engine proof using the real MCP service and real Temporal dev server.
