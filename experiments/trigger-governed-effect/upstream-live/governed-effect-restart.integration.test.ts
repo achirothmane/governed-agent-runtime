@@ -1,4 +1,7 @@
 import { trace } from "@opentelemetry/api";
+import { once } from "node:events";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { RunEngine } from "@internal/run-engine";
 import { setupAuthenticatedEnvironment } from "@internal/run-engine/tests";
 import { containerTest } from "@internal/testcontainers";
@@ -203,6 +206,79 @@ class PostgresDestination {
   }
 }
 
+async function databaseUrlForCurrentTest(prisma: any, postgresContainer: any) {
+  const rows = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+    `SELECT current_database() AS name`
+  );
+  const databaseName = rows[0]?.name;
+  if (!databaseName) throw new Error("unable to resolve isolated test database");
+
+  const url = new URL(postgresContainer.getConnectionUri());
+  url.pathname = `/${encodeURIComponent(databaseName)}`;
+  return url.toString();
+}
+
+async function commitEffectThenSigkillWorker({
+  databaseUrl,
+  effectId,
+}: {
+  databaseUrl: string;
+  effectId: string;
+}) {
+  const childPath = fileURLToPath(new URL("./governed-effect-worker-child.mjs", import.meta.url));
+  const child = spawn(process.execPath, [childPath], {
+    env: {
+      ...process.env,
+      GOV_EFFECT_DATABASE_URL: databaseUrl,
+      GOV_EFFECT_ID: effectId,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`child did not reach COMMIT seam; stdout=${stdout}; stderr=${stderr}`));
+    }, 15_000);
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      if (stdout.includes("COMMITTED\n")) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+
+    child.once("exit", (code, signal) => {
+      if (!stdout.includes("COMMITTED\n")) {
+        clearTimeout(timeout);
+        reject(
+          new Error(
+            `child exited before COMMIT seam: code=${code} signal=${signal}; stderr=${stderr}`
+          )
+        );
+      }
+    });
+  });
+
+  // Hard process death: there is no finally/cleanup/acknowledgement path.
+  const killed = child.kill("SIGKILL");
+  if (!killed) throw new Error("failed to deliver SIGKILL to effect worker");
+
+  const [code, signal] = (await once(child, "exit")) as [number | null, NodeJS.Signals | null];
+  if (code !== null || signal !== "SIGKILL") {
+    throw new Error(`worker did not die by SIGKILL: code=${code} signal=${signal}`);
+  }
+}
+
 containerTest(
   "Trigger RunEngine restart reconciles committed native effect before redispatch",
   async ({ prisma, redisOptions }) => {
@@ -238,6 +314,78 @@ containerTest(
 
       expect(result.outcome).toBe("CLOSED");
       expect(destination.executeCalls).toBe(1);
+      expect(await destination.physicalCount(effectId)).toBe(1);
+
+      const cached = await engine2.createManualWaitpoint({
+        environmentId: env.id,
+        projectId: env.project.id,
+        idempotencyKey: effectId,
+        idempotencyKeyExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+      expect(cached.isCached).toBe(true);
+      expect(cached.waitpoint.id).toBe(reservation.id);
+
+      const closed = await engine2.getWaitpoint({
+        waitpointId: reservation.id,
+        environmentId: env.id,
+        projectId: env.project.id,
+      });
+      expect(closed?.status).toBe("COMPLETED");
+      expect(closed?.output).toContain('"decision":"CLOSED"');
+    } finally {
+      await engine2.quit();
+    }
+  }
+);
+
+
+containerTest(
+  "SIGKILL after PostgreSQL COMMIT recovers through Trigger waitpoint with zero redispatch",
+  async ({ prisma, redisOptions, postgresContainer }) => {
+    const env = await setupAuthenticatedEnvironment(prisma, "PRODUCTION");
+    const destination = new PostgresDestination(prisma);
+    await destination.reset();
+
+    const effectId = "effect:hard-worker-kill";
+    const engine1 = buildEngine(prisma, redisOptions);
+    const waits1 = waitpointAdapter(engine1, env);
+
+    const reservation = await waits1.createToken({ idempotencyKey: effectId });
+    expect(reservation.isCached).toBe(false);
+    expect((await destination.observe(effectId)).kind).toBe(Observation.ABSENT);
+
+    // The effect is committed by a separate OS process. As soon as it reports
+    // that COMMIT completed, the parent sends SIGKILL. That process never gets
+    // a chance to close the Trigger.dev waitpoint.
+    const databaseUrl = await databaseUrlForCurrentTest(prisma, postgresContainer);
+    await commitEffectThenSigkillWorker({ databaseUrl, effectId });
+
+    expect(await destination.physicalCount(effectId)).toBe(1);
+
+    const stillPending = await engine1.getWaitpoint({
+      waitpointId: reservation.id,
+      environmentId: env.id,
+      projectId: env.project.id,
+    });
+    expect(stillPending?.status).toBe("PENDING");
+
+    // Also reconstruct RunEngine so neither worker memory nor engine memory can
+    // be the source of recovery truth.
+    await engine1.quit();
+
+    const engine2 = buildEngine(prisma, redisOptions);
+    try {
+      const result = await governedEffect({
+        effectId,
+        waitpoints: waitpointAdapter(engine2, env),
+        destination,
+      });
+
+      expect(result.outcome).toBe("CLOSED");
+
+      // Recovery must be observation-only: the in-process executor must never
+      // be called because the child already committed the physical effect.
+      expect(destination.executeCalls).toBe(0);
       expect(await destination.physicalCount(effectId)).toBe(1);
 
       const cached = await engine2.createManualWaitpoint({
