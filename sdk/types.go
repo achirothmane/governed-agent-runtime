@@ -207,6 +207,7 @@ const (
 	EventRunWaiting   EventType = "run.waiting"
 	EventToolCalled   EventType = "tool.called"
 	EventToolReturned EventType = "tool.returned"
+	EventToolFailed   EventType = "tool.failed"
 	EventRunCompleted EventType = "run.completed"
 	EventRunFailed    EventType = "run.failed"
 )
