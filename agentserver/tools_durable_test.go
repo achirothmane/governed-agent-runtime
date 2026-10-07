@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/achirothmane/governed-agent-runtime/mcptransport"
+	"github.com/achirothmane/governed-agent-runtime/temporaltools"
 	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 )
 
@@ -86,6 +87,13 @@ func TestDurableToolRouteRequiresInvocationIDAndPreservesEvidenceBoundary(t *tes
 	if rr.Code != 200 {
 		t.Fatalf("durable tool status=%d body=%s", rr.Code, rr.Body.String())
 	}
+	var response toolInvokeResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.EventPersisted {
+		t.Fatal("durable HTTP route must not claim activity evidence persistence")
+	}
 
 	durable.mu.Lock()
 	calls := durable.calls
@@ -101,16 +109,56 @@ func TestDurableToolRouteRequiresInvocationIDAndPreservesEvidenceBoundary(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(events) != 1 || events[0].Type != runtimesdk.EventRunStarted {
+		t.Fatalf("HTTP durable route wrote execution evidence: %#v", events)
+	}
+}
+
+func TestToolActivityEvidenceWritesExecutionEventsWithoutRawPayload(t *testing.T) {
+	service, store, _, _ := toolService(t, true)
+	startToolRun(t, service)
+	_ = service
+
+	ref := temporaltools.InvocationRef{
+		InvocationID:   "profile-002",
+		RunID:          "r1",
+		ConversationID: "c1",
+		Tool: runtimesdk.ToolDescriptor{
+			Name:           "data.profile",
+			Protocol:       runtimesdk.ToolProtocolMCP,
+			Endpoint:       "http://data-engine.test/mcp",
+			ReadOnly:       true,
+			SnapshotDigest: strings.Repeat("a", 64),
+		},
+		ArgumentsDigest: strings.Repeat("b", 64),
+	}
+	sink := ToolActivityEvidence{Store: store}
+	if err := sink.Called(context.Background(), ref); err != nil {
+		t.Fatal(err)
+	}
+	result := mcptransport.Result{
+		Tool:              ref.Tool.Name,
+		SnapshotDigest:    ref.Tool.SnapshotDigest,
+		StructuredContent: json.RawMessage(`{"stage":"PRE_SEMANTIC_PROFILE","secret":"raw-secret"}`),
+	}
+	if err := sink.Returned(context.Background(), ref, result, strings.Repeat("c", 64), false); err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := store.ListEvents(context.Background(), "c1", 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(events) != 3 {
 		t.Fatalf("events=%#v", events)
 	}
 	called := string(events[1].Payload)
 	returned := string(events[2].Payload)
-	if !strings.Contains(called, `"invocation_id":"profile-001"`) ||
-		!strings.Contains(returned, `"invocation_id":"profile-001"`) {
+	if !strings.Contains(called, `"invocation_id":"profile-002"`) ||
+		!strings.Contains(returned, `"invocation_id":"profile-002"`) {
 		t.Fatalf("invocation identity missing: called=%s returned=%s", called, returned)
 	}
 	if strings.Contains(called, "raw-secret") || strings.Contains(returned, "raw-secret") {
-		t.Fatalf("event evidence leaked raw payload: called=%s returned=%s", called, returned)
+		t.Fatalf("activity evidence leaked raw payload: called=%s returned=%s", called, returned)
 	}
 }
