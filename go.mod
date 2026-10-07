@@ -5,6 +5,8 @@ go 1.25.0
 require (
 	github.com/achirothmane/aegis-ege/governedaction v0.0.0-20261003012850-20f118dae868
 	github.com/jackc/pgx/v5 v5.7.6
+	go.temporal.io/api v1.63.4
+	go.temporal.io/sdk v1.48.0
 )
 
 require (
