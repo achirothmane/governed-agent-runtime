@@ -34,6 +34,20 @@ type ToolInvoker interface {
 	Invoke(context.Context, runtimesdk.ToolDescriptor, map[string]any) (mcptransport.Result, error)
 }
 
+// DurableToolInvoker executes a run-scoped tool through a durable substrate.
+// A5.1 implementations persist raw arguments outside Temporal history and use
+// invocationID as the idempotent execution identity.
+type DurableToolInvoker interface {
+	Execute(
+		context.Context,
+		runtimesdk.RunID,
+		runtimesdk.ConversationID,
+		string,
+		runtimesdk.ToolDescriptor,
+		map[string]any,
+	) (mcptransport.Result, error)
+}
+
 // StaticProvider is useful for composition, tests, and small deployments. Dynamic
 // deployments can implement RuntimeProvider and perform fresh MCP discovery before
 // constructing each Runtime.
