@@ -52,7 +52,7 @@ func newDataEngineMCPServer(t *testing.T) (*httptest.Server, *mcp.Server) {
 	t.Helper()
 	server := mcp.NewServer(&mcp.Implementation{Name: ExpectedServerName, Version: "a5"}, nil)
 	mcp.AddTool(server, &mcp.Tool{
-		Name: ProfileTool,
+		Name: string(ProfileTool),
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:   true,
 			IdempotentHint: true,
