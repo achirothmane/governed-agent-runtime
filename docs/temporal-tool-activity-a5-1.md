@@ -93,3 +93,7 @@ Register `temporaltools.Workflow` and `temporaltools.Activity` with `temporaltoo
 **UNKNOWN:** the remote read may have completed if the process dies after the remote response but before completion persistence.
 
 **REFUSED:** mutating MCP tools on the A5.1 retry contract.
+
+## CI authority
+
+The merge gate is the repository CI on the final branch head: module reproducibility, format check, and `go test -race ./...` against PostgreSQL 16.
