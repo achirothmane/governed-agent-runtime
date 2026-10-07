@@ -1,0 +1,32 @@
+name: Materialize A5.2 Fix
+
+on:
+  push:
+    branches: [feat/worker-e2e-a5-2]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: "!contains(github.event.head_commit.message, 'Materialize A5.2 fix')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - name: Format and tidy
+        run: |
+          gofmt -w temporaltools
+          go mod tidy
+      - name: Commit exact state
+        run: |
+          rm .github/workflows/a5-2-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add temporaltools go.mod go.sum
+          git add -u .github/workflows/a5-2-fix.yml
+          git commit -m "Materialize A5.2 fix"
+          git push
