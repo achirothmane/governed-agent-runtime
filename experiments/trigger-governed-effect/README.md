@@ -1,6 +1,6 @@
 # Trigger.dev Governed Effect Experiment v0
 
-**Disposition: EXTENSION-FIRST / NO HARD FORK YET**
+**Disposition: EXTENSION-FIRST PASS / HARD FORK REJECTED AT V0**
 
 This experiment asks one bounded question:
 
@@ -91,28 +91,52 @@ The executable tests cover:
 | REWRITE upstream | **none** |
 | DELETE upstream | **none** |
 
-This is why a hard fork is not justified yet.
+The fork gate is now closed at v0: no required invariant in this experiment needs a Trigger.dev core fork.
 
 ## Boundary and non-claims
 
 Only calls explicitly routed through `governedEffect()` receive this behavior. Direct provider calls inside arbitrary task code remain unmanaged.
 
-This experiment is not production evidence. Its waitpoint and destination tests are deterministic contract tests. The upstream source contract is verified against real pinned Trigger.dev source, but no live Trigger.dev server or real PostgreSQL effect is exercised in v0.
+The experiment now has three evidence tiers:
 
-## Advancement gate
+1. **Pinned upstream contract** — exact Trigger.dev source blobs and SDK 4.7.3 waitpoint semantics are verified in CI.
+2. **Native destination proof** — PostgreSQL 16 exercises atomic physical effect + causal receipt, stale-generation denial, authority revocation, state drift, and replay cardinality.
+3. **Pinned Trigger RunEngine recovery** — Trigger.dev's real RunEngine is built through its Turbo pipeline and exercised with real PostgreSQL/Redis Testcontainers. Two restart cases pass:
+   - RunEngine reconstruction after PostgreSQL COMMIT but before waitpoint completion;
+   - a separate effect-worker OS process is killed with `SIGKILL` immediately after PostgreSQL COMMIT and before any waitpoint closure, followed by RunEngine reconstruction and reconciliation with zero redispatch.
 
-The next gate is a live PostgreSQL integration using Trigger.dev itself:
+The physical ledger deliberately has no `UNIQUE(effect_id)`, so a duplicate physical execution would remain observable rather than being hidden by a uniqueness constraint.
+
+This is strong integration evidence for the bounded protocol, but it is not a generic exactly-once claim. It does not yet prove complete mediation for arbitrary task code, nor a full deployed webapp/supervisor/SDK network path. Direct provider calls that bypass `governedEffect()` remain outside the guarantee.
+
+## Fork rule after v0
+
+Do **not** fork Trigger.dev for this capability. The current public/internal surfaces are sufficient for the tested invariants:
 
 ```text
-Trigger task
-  -> create durable governed-effect token
-  -> PostgreSQL native guarded effect
-  -> kill worker after COMMIT but before token completion
-  -> Trigger retry
-  -> recover same token
-  -> observe exact effect already applied
-  -> zero second physical effect
-  -> CLOSED
+Trigger durable waitpoint
+        +
+stable effectId
+        +
+destination-native guarded effect
+        +
+destination observation/reconciliation
+        =
+recover after hard worker death without blind redispatch
 ```
 
-Advance toward a fork only if a required invariant cannot be implemented through the public waitpoint/task surface. A fork must be justified by a concrete counterexample, not by preference.
+Re-open the hard-fork decision only if a future required invariant is demonstrated to be impossible through the supported task/waitpoint surface. That decision requires a concrete failing counterexample, not architectural preference.
+
+## Next production gate
+
+Move from the generic experiment to one real adapter used by our own system. The adapter must preserve the same contract:
+
+```text
+REGISTERED EFFECT
+  -> native preconditions
+  -> effect + causal receipt
+  -> crash/retry reconciliation
+  -> CLOSED | UNKNOWN | DIVERGENT | DENIED
+```
+
+A provider that cannot supply a trustworthy observer or native replay guard remains unsupported rather than being wrapped with a false exactly-once claim.
