@@ -79,6 +79,16 @@ Runtime A4 adds the Agent Server service boundary:
 - strict bounded JSON request decoding and explicit conflict / retry semantics;
 - pluggable server metadata/event `Store`, with a concurrency-safe in-memory reference implementation.
 
+Runtime A4.1 adds a restart-durable PostgreSQL Agent Server store:
+
+- durable conversations and immutable agent/workspace bindings;
+- durable run metadata and execution identity bindings;
+- transactionally allocated, gap-free event sequence numbers per conversation;
+- ordered event replay after process restart;
+- database-level foreign keys preventing events from being attached to the wrong run/conversation;
+- polling-based wakeups that preserve correctness across multiple server processes without pinning one database connection per SSE client;
+- the in-memory store remains available only as a local/test reference implementation.
+
 Runtime A4.1 adds restart-durable Agent Server persistence in PostgreSQL:
 
 - durable conversation → agent → workspace bindings;
