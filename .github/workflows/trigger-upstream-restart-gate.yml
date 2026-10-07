@@ -73,7 +73,7 @@ jobs:
         run: pnpm run generate
 
       - name: Run restart gate on real Trigger RunEngine
-        working-directory: trigger-upstream/apps/webapp
+        working-directory: trigger-upstream
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
           DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
@@ -82,4 +82,6 @@ jobs:
           ENCRYPTION_KEY: dummy-encryption-keeeey-32-bytes
           DEPLOY_REGISTRY_HOST: docker.io
           CLICKHOUSE_URL: http://default:password@localhost:8123
-        run: pnpm exec vitest run test/governed-effect-restart.integration.test.ts --no-file-parallelism --reporter=default
+        # Match Trigger.dev's own webapp CI path: Turbo builds internal workspace
+        # dependencies first (^build), then forwards this single test to Vitest.
+        run: pnpm turbo run test --filter webapp -- --run test/governed-effect-restart.integration.test.ts --reporter=default
