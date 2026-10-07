@@ -1,18 +1,61 @@
-# Governed Agent Runtime
+# AI-Native Agent Runtime
 
-A persistent agent runtime for AI workers whose real-world effects are governed outside the model.
+A persistent runtime for AI workers that combines agent-facing primitives with durable execution and explicit effect boundaries.
 
-The runtime owns agent identity, lifecycle, durable work, model/tool integration, and recovery. It does **not** let a model execute effects directly. Proposed effects must cross an external governance boundary before they can reach a real system.
+> The repository name, `governed-agent-runtime`, reflects its first phase. The scope is now broader: governance remains an optional first-class boundary for consequential effects, while the runtime itself owns agents, tools, conversations, workspaces, events, durable work, model integration, and recovery.
 
-## Core boundary
+## Target shape
 
 ```text
-event
-  ↓
-persistent agent
-  ↓
-plan
-  ↓
+agent / conversation
+        ↓
+tools + workspace
+(native / MCP)
+        ↓
+bound run request
+        ↓
+ExecutionBackend
+        ↓
+native runtime | Temporal
+        ↓
+engine / external system
+        ↓
+receipt + observation + reconciliation
+```
+
+The public [`sdk`](sdk/) package is the cross-repository contract. It deliberately does not expose `internal/*` implementation details.
+
+The current durable event loop, PostgreSQL store, model-plan binding, Aegis admission integration, and GitHub effect adapter remain useful substrate. They are being composed under the wider AI-native runtime rather than discarded.
+
+## Current capabilities
+
+Implemented and tested before the AI-native expansion:
+
+- durable event ownership, fenced takeover, and lease-bound agent lifecycle;
+- file and transactional PostgreSQL stores;
+- model plans bound to exact persisted bytes and SHA-256 digests;
+- externally signed admission verified against a host-configured trust root;
+- authenticated HTTP admission issuance and live witness revalidation;
+- a bounded GitHub pull-request effect adapter with reconciliation for lost acknowledgements.
+
+Runtime A1 adds a public contract for:
+
+- agents and missions;
+- native and MCP tools;
+- local, ephemeral, and remote workspaces;
+- conversations and run identity;
+- deterministic capability resolution;
+- bound run fingerprints;
+- pluggable durable execution backends;
+- event envelopes for the future Agent Server.
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md) for the target system and migration plan.
+
+## Effect boundary
+
+Models still do **not** receive direct authority to execute consequential real-world effects. When a tool crosses into a governed effect, the existing path remains available:
+
+```text
 proposed effect
   ↓
 governance boundary
@@ -26,34 +69,6 @@ real system
 receipt + observation + reconciliation
 ```
 
-This repository is intentionally separate from Aegis-EGE, EASL, assumption-gate, and token-governance-protocol. Those remain independent primitives and are consumed through explicit contracts.
+This repository remains intentionally separate from Aegis-EGE, EASL, assumption-gate, token-governance-protocol, Data Engine, Marketing OS, and Dots. Those are independent capabilities connected through explicit contracts.
 
-## First vertical slice
-
-The first target is a persistent release engineer that wakes on GitHub events, diagnoses CI failures, prepares a repair branch, runs verification, and opens a pull request. Merge and deployment authority stay outside the agent.
-
-## Status
-
-Implemented and tested:
-
-- Durable event ownership, fenced takeover and lease-bound agent lifecycle.
-- File and transactional PostgreSQL stores.
-- Model plans bound to exact persisted bytes and SHA-256 digests.
-- Externally signed admission verified against a host-configured trust root.
-- Authenticated HTTP admission issuance and live witness revalidation.
-
-The admission service is exercised over real loopback HTTP in file/PostgreSQL
-integration tests. It uses a bounded volatile issuance ledger and host-owned
-policy callbacks. It is not a deployed production authority service.
-
-The first bounded external-effect adapter is now the GitHub pull-request
-adapter under `internal/effects/githubpr`. It binds a stable effect to an exact
-repository/base/head/head-SHA tuple, writes a provider-side binding marker,
-reconciles lost acknowledgements before retry, and fails closed on ambiguous or
-divergent provider state. It is not wired into the release-engineer handler yet,
-and it does not claim split-brain-safe exactly-once execution.
-
-See [Aegis admission](docs/aegis-admission.md),
-[remote admission](docs/remote-admission.md), and
-[GitHub PR effect](docs/github-pr-effect.md) for contracts and proof limits.
-
+Existing proof-limit documentation remains under [`docs/`](docs/).
