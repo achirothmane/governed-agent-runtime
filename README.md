@@ -44,9 +44,16 @@ Implemented and tested:
 
 The admission service is exercised over real loopback HTTP in file/PostgreSQL
 integration tests. It uses a bounded volatile issuance ledger and host-owned
-policy callbacks. It is not a deployed production authority service, and the
-release engineer does not yet dispatch GitHub tools.
+policy callbacks. It is not a deployed production authority service.
 
-See [Aegis admission](docs/aegis-admission.md) and
-[remote admission](docs/remote-admission.md) for contracts and proof limits.
+The first bounded external-effect adapter is now the GitHub pull-request
+adapter under `internal/effects/githubpr`. It binds a stable effect to an exact
+repository/base/head/head-SHA tuple, writes a provider-side binding marker,
+reconciles lost acknowledgements before retry, and fails closed on ambiguous or
+divergent provider state. It is not wired into the release-engineer handler yet,
+and it does not claim split-brain-safe exactly-once execution.
+
+See [Aegis admission](docs/aegis-admission.md),
+[remote admission](docs/remote-admission.md), and
+[GitHub PR effect](docs/github-pr-effect.md) for contracts and proof limits.
 
