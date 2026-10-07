@@ -83,7 +83,7 @@ func (p Provider) Invoke(ctx context.Context, tool runtimesdk.ToolDescriptor, ar
 		return mcptransport.Result{}, fmt.Errorf("%w: got %q", ErrUnexpectedServer, snapshot.Server.Name)
 	}
 	if snapshot.Digest != tool.SnapshotDigest {
-		return mcptransport.Result{}, fmt.Errorf("%w: bound=%s current=%s", ErrCapabilityChanged, tool.SnapshotDigest, snapshot.Digest)
+		return mcptransport.Result{}, fmt.Errorf("%w: %w: bound=%s current=%s", ErrCapabilityChanged, mcptransport.ErrSnapshotMismatch, tool.SnapshotDigest, snapshot.Digest)
 	}
 	return transport.Invoke(ctx, mcptransport.Invocation{
 		SnapshotDigest: snapshot.Digest,
