@@ -98,7 +98,17 @@ Runtime A4.1 adds restart-durable Agent Server persistence in PostgreSQL:
 - idempotent run inserts and fail-closed binding conflicts;
 - in-process watchers treated only as wakeup hints, never as durable event evidence.
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md).
+Runtime A5 connects the first real independent engine, Data Engine:
+
+- `data.profile` discovered through MCP and pinned into the exact run fingerprint;
+- server-owned Data Engine identity, endpoint, and read-only admission;
+- run-scoped `POST /v1/runs/{runID}/tools/{tool}` for admitted read-only MCP capabilities;
+- capability changes rejected before raw arguments leave Agent Server;
+- a second snapshot check immediately before invocation closes the discovery/invoke race;
+- `tool.called`, `tool.returned`, and `tool.failed` evidence without copying raw rows/results into the event log;
+- synchronous A5 invocation deliberately limited to read-only/idempotent work; durable Temporal activity execution remains A5.1.
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), and [Data Engine A5](docs/data-engine-a5.md).
 
 ## Effect boundary
 
