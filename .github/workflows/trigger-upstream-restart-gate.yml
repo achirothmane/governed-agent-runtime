@@ -41,6 +41,7 @@ jobs:
         run: |
           cp experiment/experiments/trigger-governed-effect/governed-effect.mjs             trigger-upstream/apps/webapp/test/governed-effect-fixture.mjs
           cp experiment/experiments/trigger-governed-effect/upstream-live/governed-effect-restart.integration.test.ts             trigger-upstream/apps/webapp/test/governed-effect-restart.integration.test.ts
+          cp experiment/experiments/trigger-governed-effect/upstream-live/governed-effect-worker-child.mjs             trigger-upstream/apps/webapp/test/governed-effect-worker-child.mjs
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
