@@ -23,14 +23,14 @@ type toolInvokeResponse struct {
 }
 
 type toolCallEvidence struct {
-	InvocationID   string              `json:"invocation_id,omitempty"`
-	Tool           runtimesdk.ToolName `json:"tool"`
-	SnapshotDigest string              `json:"snapshot_digest"`
-	ArgumentsDigest string             `json:"arguments_digest"`
+	InvocationID    string              `json:"invocation_id,omitempty"`
+	Tool            runtimesdk.ToolName `json:"tool"`
+	SnapshotDigest  string              `json:"snapshot_digest"`
+	ArgumentsDigest string              `json:"arguments_digest"`
 }
 
 type toolResultEvidence struct {
-	InvocationID  string              `json:"invocation_id,omitempty"`
+	InvocationID   string              `json:"invocation_id,omitempty"`
 	Tool           runtimesdk.ToolName `json:"tool"`
 	SnapshotDigest string              `json:"snapshot_digest"`
 	IsError        bool                `json:"is_error"`
@@ -38,7 +38,7 @@ type toolResultEvidence struct {
 }
 
 type toolFailureEvidence struct {
-	InvocationID  string              `json:"invocation_id,omitempty"`
+	InvocationID   string              `json:"invocation_id,omitempty"`
 	Tool           runtimesdk.ToolName `json:"tool"`
 	SnapshotDigest string              `json:"snapshot_digest"`
 	Error          string              `json:"error"`
@@ -160,7 +160,7 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 	result, err := s.invoker.Invoke(r.Context(), tool, request.Arguments)
 	if err != nil {
 		failedPayload, _ := json.Marshal(toolFailureEvidence{
-			InvocationID:  request.InvocationID,
+			InvocationID:   request.InvocationID,
 			Tool:           tool.Name,
 			SnapshotDigest: tool.SnapshotDigest,
 			Error:          err.Error(),
@@ -190,7 +190,7 @@ func (s *Service) handleInvokeTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	returnedPayload, _ := json.Marshal(toolResultEvidence{
-		InvocationID:  request.InvocationID,
+		InvocationID:   request.InvocationID,
 		Tool:           tool.Name,
 		SnapshotDigest: tool.SnapshotDigest,
 		IsError:        result.IsError,

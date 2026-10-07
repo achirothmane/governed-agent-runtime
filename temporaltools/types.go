@@ -27,11 +27,11 @@ var (
 )
 
 type InvocationRef struct {
-	InvocationID   string                    `json:"invocation_id"`
-	RunID          runtimesdk.RunID          `json:"run_id"`
-	ConversationID runtimesdk.ConversationID `json:"conversation_id"`
-	Tool           runtimesdk.ToolDescriptor `json:"tool"`
-	ArgumentsDigest string                   `json:"arguments_digest"`
+	InvocationID    string                    `json:"invocation_id"`
+	RunID           runtimesdk.RunID          `json:"run_id"`
+	ConversationID  runtimesdk.ConversationID `json:"conversation_id"`
+	Tool            runtimesdk.ToolDescriptor `json:"tool"`
+	ArgumentsDigest string                    `json:"arguments_digest"`
 }
 
 func (r InvocationRef) Validate() error {
@@ -63,12 +63,12 @@ func (r InvocationRef) Validate() error {
 }
 
 type Invocation struct {
-	Ref          InvocationRef       `json:"ref"`
-	Arguments    map[string]any      `json:"arguments,omitempty"`
-	State        InvocationState     `json:"state"`
+	Ref          InvocationRef        `json:"ref"`
+	Arguments    map[string]any       `json:"arguments,omitempty"`
+	State        InvocationState      `json:"state"`
 	Result       *mcptransport.Result `json:"result,omitempty"`
-	ResultDigest string              `json:"result_digest,omitempty"`
-	LastError    string              `json:"last_error,omitempty"`
+	ResultDigest string               `json:"result_digest,omitempty"`
+	LastError    string               `json:"last_error,omitempty"`
 }
 
 type InvocationStore interface {
