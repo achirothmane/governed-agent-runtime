@@ -49,7 +49,17 @@ Runtime A1 adds a public contract for:
 - pluggable durable execution backends;
 - event envelopes for the future Agent Server.
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md) for the target system and migration plan.
+Runtime A2 adds a Temporal durable-execution adapter behind the same `ExecutionBackend` contract:
+
+- stable Runtime `RunID` → Temporal Workflow ID mapping;
+- exact run fingerprint binding in workflow input and Temporal Memo;
+- idempotent duplicate-start reconciliation;
+- fail-closed inspection when binding evidence is missing or mismatched;
+- start, inspect, signal, and cancel operations;
+- explicit `UNKNOWN` handling where workflow-chain continuity is not yet proven;
+- Temporal Go SDK v1.48.0, pinned to preserve the Go 1.25 toolchain boundary.
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md) and [Temporal Durable Backend A2](docs/temporal-backend.md).
 
 ## Effect boundary
 
