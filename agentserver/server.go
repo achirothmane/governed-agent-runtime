@@ -232,7 +232,9 @@ func (s *Service) handleStartRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		existing.Handle = handle
-		writeJSON(w, http.StatusOK, runResponse{Run: existing, EventPersisted: true})
+		// This retry did not persist a new event. A prior run.started event may
+		// exist, but the response never claims evidence it did not write itself.
+		writeJSON(w, http.StatusOK, runResponse{Run: existing, EventPersisted: false})
 		return
 	case !errors.Is(err, ErrRunNotFound):
 		s.writeMappedError(w, r, err)
@@ -265,6 +267,12 @@ func (s *Service) handleStartRun(w http.ResponseWriter, r *http.Request) {
 		s.writeBackendError(w, r, "run_binding_mismatch", errors.New("stored run fingerprint differs from started run"))
 		return
 	}
+	if !created {
+		// Another request won the metadata race. Do not append a duplicate
+		// run.started event; the durable backend identity has already reconciled.
+		writeJSON(w, http.StatusOK, runResponse{Run: stored, EventPersisted: false})
+		return
+	}
 
 	payload, _ := json.Marshal(handle)
 	_, eventErr := s.store.AppendEvent(r.Context(), runtimesdk.EventEnvelope{
@@ -283,140 +291,309 @@ func (s *Service) handleStartRun(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, runResponse{Run: stored, EventPersisted: trueY_JBŸB‚™[˜È
-È
-”Ù\šXÙJH[™QÙ][ŠÈ”™\ÜÛœÙUÜš]\‹ˆ
-š”™\]Y\İ
-HÂ‚ZYH[[Y\ÙË”[’Q
-‹”]˜[YJœ[’QŠJB‚\™XÛÜ™\œˆHËœİÜ™K‘Ù][Š‹ÛÛ^
+	writeJSON(w, status, runResponse{Run: stored, EventPersisted: true})
+}
 
-KY
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚\[[YK\œˆHËœ›İšY\‹”[[YJ‹ÛÛ^
+func (s *Service) handleGetRun(w http.ResponseWriter, r *http.Request) {
+	id := runtimesdk.RunID(r.PathValue("runID"))
+	record, err := s.store.GetRun(r.Context(), id)
+	if err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	runtime, err := s.runtimeForRun(r.Context(), record)
+	if err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	handle, err := runtime.Inspect(r.Context(), id)
+	if err != nil {
+		s.writeBackendError(w, r, "inspect_run_failed", err)
+		return
+	}
+	if handle.Fingerprint != record.Handle.Fingerprint {
+		s.writeBackendError(w, r, "run_binding_mismatch", errors.New("backend fingerprint differs from server record"))
+		return
+	}
+	record.Handle = handle
+	writeJSON(w, http.StatusOK, record)
+}
 
-K™XÛÜ™YÙ[Q
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚Z[™K\œˆH[[YK’[œÜXİ
-‹ÛÛ^
+type signalRequest struct {
+	Payload json.RawMessage `json:"payload"`
+}
 
-KY
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]P˜XÚÙ[™\œ›ÜŠË‹š[œÜXİÜ[—Ù˜Z[Y‹\œŠB‚B\™]\›‚‚_B‚ZYˆ[™K‘š[™Ù\œš[OH™XÛÜ™’[™K‘š[™Ù\œš[Â‚B\ËÜš]P˜XÚÙ[™\œ›ÜŠË‹œ[—Øš[™[™×ÛZ\ÛX]Ú‹\œ›ÜœË“™]Ê˜˜XÚÙ[™š[™Ù\œš[Y™™\œÈœ›ÛHÙ\™\ˆ™XÛÜ™ŠJB‚B\™]\›‚‚_B‚\™XÛÜ™’[™HH[™B‚]Üš]R”ÓÓŠË”İ]\ÓÒË™XÛÜ™
-BŸB‚\HÚYÛ˜[™\]Y\İİXİÂ‚T^[ØYœÛÛ‹”˜]ÓY\ÜØYÙHœÛÛˆœ^[ØY˜ŸB‚\HÜ\˜][Û”™\ÜÛœÙHİXİÂ‚PXØÙ\Y›ÛÛœÛÛˆ˜XØÙ\Y˜‚Q]™[\œÚ\İY›ÛÛœÛÛˆ™]™[Ü\œÚ\İY˜ŸB‚™[˜È
-È
-”Ù\šXÙJH[™TÚYÛ˜[[ŠÈ”™\ÜÛœÙUÜš]\‹ˆ
-š”™\]Y\İ
-HÂ‚ZYH[[Y\ÙË”[’Q
-‹”]˜[YJœ[’QŠJB‚\ÚYÛ˜[Hİš[™ÜË•š[TÜXÙJ‹”]˜[YJœÚYÛ˜[ŠJB‚ZYˆÚYÛ˜[OHˆˆÂ‚B]Üš]Q\œ›ÜŠË”İ]\Ğ˜Y™\]Y\İš[˜[YÜÚYÛ˜[‹œÚYÛ˜[˜[YH\È™\]Z\™YŠB‚B\™]\›‚‚_B‚\™XÛÜ™\œˆHËœİÜ™K‘Ù][Š‹ÛÛ^
+type operationResponse struct {
+	Accepted       bool `json:"accepted"`
+	EventPersisted bool `json:"event_persisted"`
+}
 
-KY
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚]˜\ˆ™\]Y\İÚYÛ˜[™\]Y\İ‚ZYˆ\œˆHË™XÛÙJË‹	œ™\]Y\İ
-NÈ\œˆOHš[Â‚B]Üš]Q\œ›ÜŠË”İ]\Ğ˜Y™\]Y\İš[˜[YÜ™\]Y\İ‹\œ‹‘\œ›ÜŠ
-JB‚B\™]\›‚‚_B‚ZYˆ[Š™\]Y\İ”^[ØY
-HOHÂ‚B\™\]Y\İ”^[ØYHœÛÛ‹”˜]ÓY\ÜØYÙJ›[ŠB‚_B‚ZYˆZœÛÛ‹•˜[Y
-™\]Y\İ”^[ØY
-HÂ‚B]Üš]Q\œ›ÜŠË”İ]\Ğ˜Y™\]Y\İš[˜[YÜ™\]Y\İ‹œÚYÛ˜[^[ØY]\İ™H˜[Y”ÓÓˆŠB‚B\™]\›‚‚_B‚\[[YK\œˆHËœ›İšY\‹”[[YJ‹ÛÛ^
+func (s *Service) handleSignalRun(w http.ResponseWriter, r *http.Request) {
+	id := runtimesdk.RunID(r.PathValue("runID"))
+	signal := strings.TrimSpace(r.PathValue("signal"))
+	if signal == "" {
+		writeError(w, http.StatusBadRequest, "invalid_signal", "signal name is required")
+		return
+	}
+	record, err := s.store.GetRun(r.Context(), id)
+	if err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	var request signalRequest
+	if err := s.decode(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if len(request.Payload) == 0 {
+		request.Payload = json.RawMessage("null")
+	}
+	if !json.Valid(request.Payload) {
+		writeError(w, http.StatusBadRequest, "invalid_request", "signal payload must be valid JSON")
+		return
+	}
+	runtime, err := s.runtimeForRun(r.Context(), record)
+	if err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	if err := runtime.Signal(r.Context(), id, signal, request.Payload); err != nil {
+		s.writeBackendError(w, r, "signal_run_failed", err)
+		return
+	}
+	payload, _ := json.Marshal(struct {
+		Name    string          `json:"name"`
+		Payload json.RawMessage `json:"payload"`
+	}{Name: signal, Payload: request.Payload})
+	_, eventErr := s.store.AppendEvent(r.Context(), runtimesdk.EventEnvelope{
+		Type:           eventRunSignaled,
+		RunID:          id,
+		ConversationID: record.ConversationID,
+		OccurredAt:     s.clock().UTC(),
+		Payload:        payload,
+	})
+	if eventErr != nil {
+		s.logger.Error("append run.signaled event", "run_id", id, "error", eventErr)
+		writeJSON(w, http.StatusAccepted, operationResponse{Accepted: true, EventPersisted: false})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, operationResponse{Accepted: true, EventPersisted: true})
+}
 
-K™XÛÜ™YÙ[Q
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚ZYˆ\œˆH[[YK”ÚYÛ˜[
-‹ÛÛ^
+type cancelRequest struct {
+	Reason string `json:"reason"`
+}
 
-KYÚYÛ˜[™\]Y\İ”^[ØY
-NÈ\œˆOHš[Â‚B\ËÜš]P˜XÚÙ[™\œ›ÜŠË‹œÚYÛ˜[Ü[—Ù˜Z[Y‹\œŠB‚B\™]\›‚‚_B‚\^[ØYÈHœÛÛ‹“X\œÚ[
-İXİÂ‚BS˜[YHİš[™ÈœÛÛˆ›˜[YH˜‚BT^[ØYœÛÛ‹”˜]ÓY\ÜØYÙHœÛÛˆœ^[ØY˜‚_^Ó˜[YNˆÚYÛ˜[^[ØYˆ™\]Y\İ”^[ØYJB‚WË]™[\œˆHËœİÜ™K\[™]™[
-‹ÛÛ^
+func (s *Service) handleCancelRun(w http.ResponseWriter, r *http.Request) {
+	id := runtimesdk.RunID(r.PathValue("runID"))
+	record, err := s.store.GetRun(r.Context(), id)
+	if err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	var request cancelRequest
+	if err := s.decode(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if strings.TrimSpace(request.Reason) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "cancellation reason is required")
+		return
+	}
+	runtime, err := s.runtimeForRun(r.Context(), record)
+	if err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	if err := runtime.Cancel(r.Context(), id, request.Reason); err != nil {
+		s.writeBackendError(w, r, "cancel_run_failed", err)
+		return
+	}
+	payload, _ := json.Marshal(request)
+	_, eventErr := s.store.AppendEvent(r.Context(), runtimesdk.EventEnvelope{
+		Type:           eventRunCancelRequested,
+		RunID:          id,
+		ConversationID: record.ConversationID,
+		OccurredAt:     s.clock().UTC(),
+		Payload:        payload,
+	})
+	if eventErr != nil {
+		s.logger.Error("append run.cancel_requested event", "run_id", id, "error", eventErr)
+		writeJSON(w, http.StatusAccepted, operationResponse{Accepted: true, EventPersisted: false})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, operationResponse{Accepted: true, EventPersisted: true})
+}
 
-K[[Y\ÙË‘]™[[™[Ü^Â‚BU\Nˆ]™[[”ÚYÛ˜[Y‚BT[’QˆY‚BPÛÛ™\œØ][Û’Qˆ™XÛÜ™ÛÛ™\œØ][Û’Q‚BSØØİ\œ™Y]ˆË˜ÛØÚÊ
-K•UÊ
-K‚BT^[ØYˆ^[ØY‚_JB‚ZYˆ]™[\œˆOHš[Â‚B\Ë›ÙÙÙ\‹‘\œ›ÜŠ˜\[™[‹œÚYÛ˜[Y]™[‹œ[—ÚY‹Y™\œ›Üˆ‹]™[\œŠB‚B]Üš]R”ÓÓŠË”İ]\ĞXØÙ\YÜ\˜][Û”™\ÜÛœÙ^ĞXØÙ\YˆYK]™[\œÚ\İYˆ˜[Ù_JB‚B\™]\›‚‚_B‚]Üš]R”ÓÓŠË”İ]\ĞXØÙ\YÜ\˜][Û”™\ÜÛœÙ^ĞXØÙ\YˆYK]™[\œÚ\İYˆY_JBŸB‚\HØ[˜Ù[™\]Y\İİXİÂ‚T™X\ÛÛˆİš[™ÈœÛÛˆœ™X\ÛÛˆ˜ŸB‚™[˜È
-È
-”Ù\šXÙJH[™PØ[˜Ù[[ŠÈ”™\ÜÛœÙUÜš]\‹ˆ
-š”™\]Y\İ
-HÂ‚ZYH[[Y\ÙË”[’Q
-‹”]˜[YJœ[’QŠJB‚\™XÛÜ™\œˆHËœİÜ™K‘Ù][Š‹ÛÛ^
+func (s *Service) handleEvents(w http.ResponseWriter, r *http.Request) {
+	conversationID := runtimesdk.ConversationID(r.PathValue("conversationID"))
+	if _, err := s.store.GetConversation(r.Context(), conversationID); err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	after, err := eventCursor(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_event_cursor", err.Error())
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming_unsupported", "response writer does not support streaming")
+		return
+	}
+	notifications, cancelWatch, err := s.store.Watch(r.Context(), conversationID)
+	if err != nil {
+		s.writeMappedError(w, r, err)
+		return
+	}
+	defer cancelWatch()
 
-KY
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚]˜\ˆ™\]Y\İØ[˜Ù[™\]Y\İ‚ZYˆ\œˆHË™XÛÙJË‹	œ™\]Y\İ
-NÈ\œˆOHš[Â‚B]Üš]Q\œ›ÜŠË”İ]\Ğ˜Y™\]Y\İš[˜[YÜ™\]Y\İ‹\œ‹‘\œ›ÜŠ
-JB‚B\™]\›‚‚_B‚ZYˆİš[™ÜË•š[TÜXÙJ™\]Y\İ”™X\ÛÛŠHOHˆˆÂ‚B]Üš]Q\œ›ÜŠË”İ]\Ğ˜Y™\]Y\İš[˜[YÜ™\]Y\İ‹˜Ø[˜Ù[][Ûˆ™X\ÛÛˆ\È™\]Z\™YŠB‚B\™]\›‚‚_B‚\[[YK\œˆHËœ›İšY\‹”[[YJ‹ÛÛ^
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
 
-K™XÛÜ™YÙ[Q
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚ZYˆ\œˆH[[YKØ[˜Ù[
-‹ÛÛ^
+	heartbeat := time.NewTicker(s.heartbeatInterval)
+	defer heartbeat.Stop()
 
-KY™\]Y\İ”™X\ÛÛŠNÈ\œˆOHš[Â‚B\ËÜš]P˜XÚÙ[™\œ›ÜŠË‹˜Ø[˜Ù[Ü[—Ù˜Z[Y‹\œŠB‚B\™]\›‚‚_B‚\^[ØYÈHœÛÛ‹“X\œÚ[
-™\]Y\İ
-B‚WË]™[\œˆHËœİÜ™K\[™]™[
-‹ÛÛ^
+	for {
+		drained := false
+		for !drained {
+			events, err := s.store.ListEvents(r.Context(), conversationID, after, eventPageSize)
+			if err != nil {
+				s.logger.Error("list stream events", "conversation_id", conversationID, "error", err)
+				return
+			}
+			for _, event := range events {
+				if err := writeSSE(w, event); err != nil {
+					return
+				}
+				after = event.Sequence
+			}
+			if len(events) < eventPageSize {
+				drained = true
+			}
+			if len(events) > 0 {
+				flusher.Flush()
+			}
+		}
 
-K[[Y\ÙË‘]™[[™[Ü^Â‚BU\Nˆ]™[[Ø[˜Ù[™\]Y\İY‚BT[’QˆY‚BPÛÛ™\œØ][Û’Qˆ™XÛÜ™ÛÛ™\œØ][Û’Q‚BSØØİ\œ™Y]ˆË˜ÛØÚÊ
-K•UÊ
-K‚BT^[ØYˆ^[ØY‚_JB‚ZYˆ]™[\œˆOHš[Â‚B\Ë›ÙÙÙ\‹‘\œ›ÜŠ˜\[™[‹˜Ø[˜Ù[Ü™\]Y\İY]™[‹œ[—ÚY‹Y™\œ›Üˆ‹]™[\œŠB‚B]Üš]R”ÓÓŠË”İ]\ĞXØÙ\YÜ\˜][Û”™\ÜÛœÙ^ĞXØÙ\YˆYK]™[\œÚ\İYˆ˜[Ù_JB‚B\™]\›‚‚_B‚]Üš]R”ÓÓŠË”İ]\ĞXØÙ\YÜ\˜][Û”™\ÜÛœÙ^ĞXØÙ\YˆYK]™[\œÚ\İYˆY_JBŸB‚™[˜È
-È
-”Ù\šXÙJH[™Q]™[ÊÈ”™\ÜÛœÙUÜš]\‹ˆ
-š”™\]Y\İ
-HÂ‚XÛÛ™\œØ][Û’QH[[Y\ÙËÛÛ™\œØ][Û’Q
-‹”]˜[YJ˜ÛÛ™\œØ][Û’QŠJB‚ZYˆË\œˆHËœİÜ™K‘Ù]ÛÛ™\œØ][ÛŠ‹ÛÛ^
+		select {
+		case <-r.Context().Done():
+			return
+		case <-notifications:
+		case <-heartbeat.C:
+			if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
 
-KÛÛ™\œØ][Û’Q
-NÈ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚XY\‹\œˆH]™[İ\œÛÜŠŠB‚ZYˆ\œˆOHš[Â‚B]Üš]Q\œ›ÜŠË”İ]\Ğ˜Y™\]Y\İš[˜[YÙ]™[Øİ\œÛÜˆ‹\œ‹‘\œ›ÜŠ
-JB‚B\™]\›‚‚_B‚Y›\Ú\‹ÚÈHËŠ‘›\Ú\ŠB‚ZYˆ[ÚÈÂ‚B]Üš]Q\œ›ÜŠË”İ]\Ò[\›˜[Ù\™\‘\œ›Ü‹œİ™X[Z[™×İ[œİ\ÜY‹œ™\ÜÛœÙHÜš]\ˆÙ\È›İİ\Üİ™X[Z[™ÈŠB‚B\™]\›‚‚_B‚[›İYšXØ][ÛœËØ[˜Ù[Ø]Ú\œˆHËœİÜ™K•Ø]Ú
-‹ÛÛ^
+func (s *Service) runtimeForRun(ctx context.Context, record RunRecord) (runtimesdk.Runtime, error) {
+	conversation, err := s.store.GetConversation(ctx, record.ConversationID)
+	if err != nil {
+		return runtimesdk.Runtime{}, err
+	}
+	if conversation.Ref.AgentID != record.AgentID {
+		return runtimesdk.Runtime{}, fmt.Errorf("%w: run agent does not match conversation binding", ErrConflict)
+	}
+	return s.runtimeForConversation(ctx, conversation)
+}
 
-KÛÛ™\œØ][Û’Q
-B‚ZYˆ\œˆOHš[Â‚B\ËÜš]SX\Y\œ›ÜŠË‹\œŠB‚B\™]\›‚‚_B‚YY™\ˆØ[˜Ù[Ø]Ú
+func (s *Service) runtimeForConversation(ctx context.Context, conversation Conversation) (runtimesdk.Runtime, error) {
+	runtime, err := s.provider.Runtime(ctx, conversation.Ref.AgentID)
+	if err != nil {
+		return runtimesdk.Runtime{}, err
+	}
+	if runtime.Agent.ID != conversation.Ref.AgentID || runtime.Agent.Workspace.ID != conversation.Ref.WorkspaceID {
+		return runtimesdk.Runtime{}, fmt.Errorf("%w: runtime no longer matches conversation binding", ErrConflict)
+	}
+	return runtime, nil
+}
 
-B‚‚]Ë’XY\Š
-K”Ù]
-ÛÛ[U\H‹^Ù]™[\İ™X[HŠB‚]Ë’XY\Š
-K”Ù]
-ØXÚKPÛÛ›Û‹››Ë\İÜ™HŠB‚]Ë’XY\Š
-K”Ù]
-–PXØÙ[PY™™\š[™È‹››ÈŠB‚]Ë•Üš]RXY\Š”İ]\ÓÒÊB‚Y›\Ú\‹‘›\Ú
+func (s *Service) decode(w http.ResponseWriter, r *http.Request, target any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, s.maxBodyBytes)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return errors.New("request body must contain exactly one JSON value")
+	}
+	return nil
+}
 
-B‚‚ZX\™X]H[YK“™]ÕXÚÙ\ŠËšX\™X][\˜[
-B‚YY™\ˆX\™X]”İÜ
+func (s *Service) writeMappedError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, ErrAgentNotFound):
+		writeError(w, http.StatusNotFound, "agent_not_found", "agent not found")
+	case errors.Is(err, ErrConversationNotFound):
+		writeError(w, http.StatusNotFound, "conversation_not_found", "conversation not found")
+	case errors.Is(err, ErrRunNotFound):
+		writeError(w, http.StatusNotFound, "run_not_found", "run not found")
+	case errors.Is(err, ErrConflict):
+		writeError(w, http.StatusConflict, "binding_conflict", err.Error())
+	default:
+		s.writeBackendError(w, r, "server_error", err)
+	}
+}
 
-B‚‚Y›ÜˆÂ‚BY˜Z[™YH˜[ÙB‚BY›ÜˆY˜Z[™YÂ‚BBY]™[Ë\œˆHËœİÜ™K“\İ]™[Ê‹ÛÛ^
+func (s *Service) writeBackendError(w http.ResponseWriter, r *http.Request, code string, err error) {
+	s.logger.Error("agent server request failed", "method", r.Method, "path", r.URL.Path, "code", code, "error", err)
+	writeError(w, http.StatusServiceUnavailable, code, "runtime operation unavailable; retry with the same bound request")
+}
 
-KÛÛ™\œØ][Û’QY\‹]™[YÙTÚ^™JB‚BBZYˆ\œˆOHš[Â‚BBB\Ë›ÙÙÙ\‹‘\œ›ÜŠ›\İİ™X[H]™[È‹˜ÛÛ™\œØ][Û—ÚY‹ÛÛ™\œØ][Û’Q™\œ›Üˆ‹\œŠB‚BBB\™]\›‚‚BB_B‚BBY›ÜˆË]™[H˜[™ÙH]™[ÈÂ‚BBBZYˆ\œˆHÜš]TÔÑJË]™[
-NÈ\œˆOHš[Â‚BBBB\™]\›‚‚BBB_B‚BBBXY\ˆH]™[”Ù\]Y[˜ÙB‚BB_B‚BBZYˆ[Š]™[ÊH]™[YÙTÚ^™HÂ‚BBBY˜Z[™YHYB‚BB_B‚BBZYˆ[Š]™[ÊHˆÂ‚BBBY›\Ú\‹‘›\Ú
+type errorBody struct {
+	Error struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
 
-B‚BB_B‚B_B‚‚B\Ù[XİÂ‚BXØ\ÙH\‹ÛÛ^
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	var body errorBody
+	body.Error.Code = code
+	body.Error.Message = message
+	writeJSON(w, status, body)
+}
 
-K‘Û™J
-N‚‚BB\™]\›‚‚BXØ\ÙH[›İYšXØ][ÛœÎ‚‚BXØ\ÙHZX\™X]Î‚‚BBZYˆË\œˆH[Ë•Üš]Tİš[™ÊËˆÙY\[]™W—ˆŠNÈ\œˆOHš[Â‚BBB\™]\›‚‚BB_B‚BBY›\Ú\‹‘›\Ú
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
 
-B‚B_B‚_BŸB‚™[˜È
-È
-”Ù\šXÙJH[[YQ›ÜÛÛ™\œØ][ÛŠİÛÛ^ÛÛ^ÛÛ™\œØ][ÛˆÛÛ™\œØ][ÛŠH
-[[Y\ÙË”[[YK\œ›ÜŠHÂ‚\[[YK\œˆHËœ›İšY\‹”[[YJİÛÛ™\œØ][Û‹”™Y‹YÙ[Q
-B‚ZYˆ\œˆOHš[Â‚B\™]\›ˆ[[Y\ÙË”[[Y^ßK\œ‚‚_B‚ZYˆ[[YKYÙ[’QOHÛÛ™\œØ][Û‹”™Y‹YÙ[Q[[YKYÙ[•ÛÜšÜÜXÙK’QOHÛÛ™\œØ][Û‹”™Y‹•ÛÜšÜÜXÙRQÂ‚B\™]\›ˆ[[Y\ÙË”[[Y^ßK›]‘\œ›Ü™Š‰]Îˆ[[YH›ÈÛ™Ù\ˆX]Ú\ÈÛÛ™\œØ][Ûˆš[™[™È‹\œÛÛ™›Xİ
-B‚_B‚\™]\›ˆ[[YKš[ŸB‚™[˜È
-È
-”Ù\šXÙJHXÛÙJÈ”™\ÜÛœÙUÜš]\‹ˆ
-š”™\]Y\İ\™Ù][JH\œ›ÜˆÂ‚\‹›ÙHH“X^]\Ô™XY\ŠË‹›ÙKË›X^›ÙP]\ÊB‚YXÛÙ\ˆHœÛÛ‹“™]ÑXÛÙ\Š‹›ÙJB‚YXÛÙ\‹‘\Ø[İÕ[šÛ›İÛ‘šY[Ê
-B‚ZYˆ\œˆHXÛÙ\‹‘XÛÙJ\™Ù]
-NÈ\œˆOHš[Â‚B\™]\›ˆ\œ‚‚_B‚]˜\ˆ^˜H[B‚ZYˆ\œˆHXÛÙ\‹‘XÛÙJ	™^˜JNÈY\œ›ÜœË’\Ê\œ‹[Ë‘SÑŠHÂ‚B\™]\›ˆ\œ›ÜœË“™]Êœ™\]Y\İ›ÙH]\İÛÛZ[ˆ^XİHÛ™H”ÓÓˆ˜[YHŠB‚_B‚\™]\›ˆš[ŸB‚™[˜È
-È
-”Ù\šXÙJHÜš]SX\Y\œ›ÜŠÈ”™\ÜÛœÙUÜš]\‹ˆ
-š”™\]Y\İ\œˆ\œ›ÜŠHÂ‚\İÚ]ÚÂ‚XØ\ÙH\œ›ÜœË’\Ê\œ‹\œYÙ[›İ›İ[™
-N‚‚B]Üš]Q\œ›ÜŠË”İ]\Ó›İ›İ[™˜YÙ[Û›İÙ›İ[™‹˜YÙ[›İ›İ[™ŠB‚XØ\ÙH\œ›ÜœË’\Ê\œ‹\œÛÛ™\œØ][Û“›İ›İ[™
-N‚‚B]Üš]Q\œ›ÜŠË”İ]\Ó›İ›İ[™˜ÛÛ™\œØ][Û—Û›İÙ›İ[™‹˜ÛÛ™\œØ][Ûˆ›İ›İ[™ŠB‚XØ\ÙH\œ›ÜœË’\Ê\œ‹\œ”[“›İ›İ[™
-N‚‚B]Üš]Q\œ›ÜŠË”İ]\Ó›İ›İ[™œ[—Û›İÙ›İ[™‹œ[ˆ›İ›İ[™ŠB‚XØ\ÙH\œ›ÜœË’\Ê\œ‹\œÛÛ™›Xİ
-N‚‚B]Üš]Q\œ›ÜŠË”İ]\ĞÛÛ™›Xİ˜š[™[™×ØÛÛ™›Xİ‹\œ‹‘\œ›ÜŠ
-JB‚YY˜][‚‚B\ËÜš]P˜XÚÙ[™\œ›ÜŠË‹œÙ\™\—Ù\œ›Üˆ‹\œŠB‚_BŸB‚™[˜È
-È
-”Ù\šXÙJHÜš]P˜XÚÙ[™\œ›ÜŠÈ”™\ÜÛœÙUÜš]\‹ˆ
-š”™\]Y\İÛÙHİš[™Ë\œˆ\œ›ÜŠHÂ‚\Ë›ÙÙÙ\‹‘\œ›ÜŠ˜YÙ[Ù\™\ˆ™\]Y\İ˜Z[Y‹›Y]Ù‹‹“Y]Ùœ]‹‹•T“”]˜ÛÙH‹ÛÙK™\œ›Üˆ‹\œŠB‚]Üš]Q\œ›ÜŠË”İ]\ÔÙ\šXÙU[˜]˜Z[X›KÛÙKœ[[YHÜ\˜][Ûˆ[˜]˜Z[X›NÈ™]HÚ]HØ[YH›İ[™™\]Y\İŠBŸB‚\H\œ›Ü›ÙHİXİÂ‚Q\œ›ÜˆİXİÂ‚BPÛÙHİš[™ÈœÛÛˆ˜ÛÙH˜‚BSY\ÜØYÙHİš[™ÈœÛÛˆ›Y\ÜØYÙH˜‚_HœÛÛˆ™\œ›Üˆ˜ŸB‚™[˜ÈÜš]Q\œ›ÜŠÈ”™\ÜÛœÙUÜš]\‹İ]\È[ÛÙKY\ÜØYÙHİš[™ÊHÂ‚]˜\ˆ›ÙH\œ›Ü›ÙB‚X›ÙK‘\œ›Ü‹ÛÙHHÛÙB‚X›ÙK‘\œ›Ü‹“Y\ÜØYÙHHY\ÜØYÙB‚]Üš]R”ÓÓŠËİ]\Ë›ÙJBŸB‚™[˜ÈÜš]R”ÓÓŠÈ”™\ÜÛœÙUÜš]\‹İ]\È[˜[YH[JHÂ‚]Ë’XY\Š
-K”Ù]
-ÛÛ[U\H‹˜\XØ][Û‹ÚœÛÛˆŠB‚]Ë’XY\Š
-K”Ù]
-ØXÚKPÛÛ›Û‹››Ë\İÜ™HŠB‚]Ë•Üš]RXY\Šİ]\ÊB‚WÈHœÛÛ‹“™]Ñ[˜ÛÙ\ŠÊK‘[˜ÛÙJ˜[YJBŸB‚™[˜È]™[İ\œÛÜŠˆ
-š”™\]Y\İ
-H
-Z[\œ›ÜŠHÂ‚\˜]ÈHİš[™ÜË•š[TÜXÙJ‹•T“”]Y\J
-K‘Ù]
-˜Y\ˆŠJB‚ZYˆ˜]ÈOHˆˆÂ‚B\˜]ÈHİš[™ÜË•š[TÜXÙJ‹’XY\‹‘Ù]
-“\İQ]™[RQŠJB‚_B‚ZYˆ˜]ÈOHˆˆÂ‚B\™]\›ˆš[‚_B‚Xİ\œÛÜ‹\œˆHİ˜ÛÛ‹”\œÙUZ[
-˜]ËL
-B‚ZYˆ\œˆOHš[Â‚B\™]\›ˆ\œ›ÜœË“™]Ê™]™[İ\œÛÜˆ]\İ™H[ˆ[œÚYÛ™Y[YÙ\ˆŠB‚_B‚\™]\›ˆİ\œÛÜ‹š[ŸB‚™[˜ÈÜš]TÔÑJÈ[Ë•Üš]\‹]™[[[Y\ÙË‘]™[[™[ÜJH\œ›ÜˆÂ‚Y]K\œˆHœÛÛ‹“X\œÚ[
-]™[
-B‚ZYˆ\œˆOHš[Â‚B\™]\›ˆ\œ‚‚_B‚ZYˆË\œˆH›]‘œš[ŠËšYˆ	Y™]™[ˆ	\×™]Nˆ	\×—ˆ‹]™[”Ù\]Y[˜ÙK]™[•\K]JNÈ\œˆOHš[Â‚B\™]\›ˆ\œ‚‚_B‚\™]\›ˆš[ŸB
+func eventCursor(r *http.Request) (uint64, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("after"))
+	if raw == "" {
+		raw = strings.TrimSpace(r.Header.Get("Last-Event-ID"))
+	}
+	if raw == "" {
+		return 0, nil
+	}
+	cursor, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, errors.New("event cursor must be an unsigned integer")
+	}
+	return cursor, nil
+}
+
+func writeSSE(w io.Writer, event runtimesdk.EventEnvelope) error {
+	if strings.ContainsAny(string(event.Type), "\r\n") {
+		return errors.New("event type contains an invalid line break")
+	}
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", event.Sequence, event.Type, data); err != nil {
+		return err
+	}
+	return nil
+}

@@ -86,8 +86,12 @@ func (s *MemoryStore) PutRun(_ context.Context, record RunRecord) (RunRecord, bo
 		}
 		return existing, false, nil
 	}
-	if _, ok := s.conversations[record.ConversationID]; !ok {
+	conversation, ok := s.conversations[record.ConversationID]
+	if !ok {
 		return RunRecord{}, false, fmt.Errorf("%w: %s", ErrConversationNotFound, record.ConversationID)
+	}
+	if conversation.Ref.AgentID != record.AgentID {
+		return RunRecord{}, false, fmt.Errorf("%w: run %s agent does not match conversation", ErrConflict, record.ID)
 	}
 	s.runs[record.ID] = record
 	return record, true, nil
@@ -115,8 +119,12 @@ func (s *MemoryStore) AppendEvent(_ context.Context, event runtimesdk.EventEnvel
 	if _, ok := s.conversations[event.ConversationID]; !ok {
 		return runtimesdk.EventEnvelope{}, fmt.Errorf("%w: %s", ErrConversationNotFound, event.ConversationID)
 	}
-	if _, ok := s.runs[event.RunID]; !ok {
+	record, ok := s.runs[event.RunID]
+	if !ok {
 		return runtimesdk.EventEnvelope{}, fmt.Errorf("%w: %s", ErrRunNotFound, event.RunID)
+	}
+	if record.ConversationID != event.ConversationID {
+		return runtimesdk.EventEnvelope{}, fmt.Errorf("%w: run %s does not belong to conversation %s", ErrConflict, event.RunID, event.ConversationID)
 	}
 	history := s.events[event.ConversationID]
 	event.Sequence = uint64(len(history) + 1)
