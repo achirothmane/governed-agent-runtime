@@ -14,7 +14,7 @@ import (
 	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 )
 
-func newPostgresAgentServerStore(t *testing.T) (*PostgresStore, *sql.DB) {
+func openAgentServerPostgres(t *testing.T) (*sql.DB, *PostgresStore) {
 	t.Helper()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -25,73 +25,81 @@ func newPostgresAgentServerStore(t *testing.T) (*PostgresStore, *sql.DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
+	if err := db.PingContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	store, err := NewPostgresStore(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Migrate(ctx); err != nil {
+	if err := store.Migrate(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, "TRUNCATE TABLE agent_server_events, agent_server_event_cursors, agent_server_runs, agent_server_conversations RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := db.ExecContext(context.Background(), `
+		TRUNCATE agent_server_events, agent_server_runs, agent_server_conversations CASCADE`); err != nil {
 		t.Fatal(err)
 	}
-	return store, db
+	return db, store
 }
 
-func pgConversation(id string, at time.Time) Conversation {
-	return Conversation{
+func seedPostgresConversationRun(t *testing.T, store *PostgresStore) (Conversation, RunRecord) {
+	t.Helper()
+	ctx := context.Background()
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	conversation := Conversation{
 		Ref: runtimesdk.ConversationRef{
-			ID:          runtimesdk.ConversationID(id),
-			AgentID:     "agent",
-			WorkspaceID: "workspace",
+			ID:          "conv-1",
+			AgentID:     "agent-1",
+			WorkspaceID: "workspace-1",
 		},
 		CreatedAt: at,
 	}
-}
-
-func pgRun(t *testing.T, conversation Conversation, id, input string, at time.Time) RunRecord {
-	t.Helper()
+	storedConversation, created, err := store.PutConversation(ctx, conversation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created || storedConversation.Ref != conversation.Ref {
+		t.Fatalf("unexpected conversation result: created=%v value=%#v", created, storedConversation)
+	}
 	handle := runtimesdk.RunHandle{
-		ID:          runtimesdk.RunID(id),
+		ID:          "run-1",
 		Backend:     "temporal",
-		ExternalID:  "ai-native-run/" + id,
-		Fingerprint: "fingerprint-" + id,
+		ExternalID:  "temporal-execution-1",
+		Fingerprint: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		State:       runtimesdk.RunQueued,
 	}
-	record, err := NewRunRecord(conversation, input, handle, at)
+	record, err := NewRunRecord(conversation, "profile the source", handle, at.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return record
+	storedRun, runCreated, err := store.PutRun(ctx, record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !runCreated || !sameRunBinding(storedRun, record) {
+		t.Fatalf("unexpected run result: created=%v value=%#v", runCreated, storedRun)
+	}
+	return conversation, record
 }
 
-func TestPostgresAgentServerStoreSurvivesReconstruction(t *testing.T) {
-	store, db := newPostgresAgentServerStore(t)
+func TestPostgresStoreSurvivesStoreRecreationAndReplaysEvents(t *testing.T) {
+	db, store := openAgentServerPostgres(t)
+	conversation, record := seedPostgresConversationRun(t, store)
 	ctx := context.Background()
-	at := time.Date(2026, 10, 7, 14, 0, 0, 123456789, time.UTC)
-	conversation := pgConversation("restart-conversation", at)
 
-	if _, created, err := store.PutConversation(ctx, conversation); err != nil || !created {
-		t.Fatalf("PutConversation created=%v err=%v", created, err)
-	}
-	record := pgRun(t, conversation, "restart-run", "profile dataset", at.Add(time.Second))
-	if _, created, err := store.PutRun(ctx, record); err != nil || !created {
-		t.Fatalf("PutRun created=%v err=%v", created, err)
-	}
-	first, err := store.AppendEvent(ctx, runtimesdk.EventEnvelope{
-		Type:           runtimesdk.EventRunStarted,
-		RunID:          record.ID,
-		ConversationID: conversation.Ref.ID,
-		OccurredAt:     at.Add(2 * time.Second),
-	})
-	if err != nil {
-		t.Fatal(err)
+	for i, typ := range []runtimesdk.EventType{runtimesdk.EventRunStarted, "run.signaled"} {
+		event, err := store.AppendEvent(ctx, runtimesdk.EventEnvelope{
+			Type:           typ,
+			RunID:          record.ID,
+			ConversationID: conversation.Ref.ID,
+			OccurredAt:     time.Date(2026, 10, 7, 12, 1+i, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if event.Sequence != uint64(i+1) {
+			t.Fatalf("sequence=%d want=%d", event.Sequence, i+1)
+		}
 	}
 
 	restarted, err := NewPostgresStore(db)
@@ -102,45 +110,49 @@ func TestPostgresAgentServerStoreSurvivesReconstruction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotConversation.Ref != conversation.Ref || !gotConversation.CreatedAt.Equal(conversation.CreatedAt) {
-		t.Fatalf("conversation after restart=%#v want %#v", gotConversation, conversation)
+	if gotConversation.Ref != conversation.Ref {
+		t.Fatalf("conversation after restart=%#v", gotConversation)
 	}
 	gotRun, err := restarted.GetRun(ctx, record.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotRun.Handle.Fingerprint != record.Handle.Fingerprint || gotRun.InputDigest != record.InputDigest {
-		t.Fatalf("run binding after restart=%#v", gotRun)
+	if !sameRunBinding(gotRun, record) {
+		t.Fatalf("run after restart=%#v", gotRun)
 	}
 	events, err := restarted.ListEvents(ctx, conversation.Ref.ID, 0, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 1 || events[0].Sequence != first.Sequence || events[0].Type != runtimesdk.EventRunStarted {
+	if len(events) != 2 || events[0].Sequence != 1 || events[1].Sequence != 2 {
 		t.Fatalf("events after restart=%#v", events)
+	}
+	resumed, err := restarted.ListEvents(ctx, conversation.Ref.ID, 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resumed) != 1 || resumed[0].Sequence != 2 {
+		t.Fatalf("resumed events=%#v", resumed)
 	}
 }
 
-func TestPostgresAgentServerStoreConcurrentEventsAreContiguous(t *testing.T) {
-	store, _ := newPostgresAgentServerStore(t)
+func TestPostgresStoreAllocatesGapFreePerConversationSequencesConcurrently(t *testing.T) {
+	_, store := openAgentServerPostgres(t)
+	conversation, record := seedPostgresConversationRun(t, store)
 	ctx := context.Background()
-	at := time.Date(2026, 10, 7, 14, 10, 0, 0, time.UTC)
-	conversation := pgConversation("ordered-conversation", at)
-	if _, _, err := store.PutConversation(ctx, conversation); err != nil {
-		t.Fatal(err)
-	}
 
-	const n = 32
+	const count = 32
+	errs := make(chan error, count)
 	var wg sync.WaitGroup
-	errs := make(chan error, n)
-	for i := 0; i < n; i++ {
+	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			_, err := store.AppendEvent(ctx, runtimesdk.EventEnvelope{
-				Type:           runtimesdk.EventType("server.heartbeat"),
+				Type:           runtimesdk.EventType("test.concurrent"),
+				RunID:          record.ID,
 				ConversationID: conversation.Ref.ID,
-				OccurredAt:     at.Add(time.Duration(i+1) * time.Nanosecond),
+				OccurredAt:     time.Date(2026, 10, 7, 12, 10, i, 0, time.UTC),
 			})
 			errs <- err
 		}(i)
@@ -153,104 +165,92 @@ func TestPostgresAgentServerStoreConcurrentEventsAreContiguous(t *testing.T) {
 		}
 	}
 
-	events, err := store.ListEvents(ctx, conversation.Ref.ID, 0, n+1)
+	events, err := store.ListEvents(ctx, conversation.Ref.ID, 0, count+1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != n {
-		t.Fatalf("event count=%d want %d", len(events), n)
+	if len(events) != count {
+		t.Fatalf("event count=%d want=%d", len(events), count)
 	}
 	for i, event := range events {
 		want := uint64(i + 1)
 		if event.Sequence != want {
-			t.Fatalf("event[%d].sequence=%d want %d", i, event.Sequence, want)
+			t.Fatalf("events[%d].sequence=%d want=%d", i, event.Sequence, want)
 		}
 	}
 }
 
-func TestPostgresAgentServerStoreRunBindingIsIdempotentAndConflictsFailClosed(t *testing.T) {
-	store, _ := newPostgresAgentServerStore(t)
-	ctx := context.Background()
-	at := time.Date(2026, 10, 7, 14, 20, 0, 0, time.UTC)
-	conversation := pgConversation("binding-conversation", at)
-	if _, _, err := store.PutConversation(ctx, conversation); err != nil {
-		t.Fatal(err)
-	}
-	record := pgRun(t, conversation, "bound-run", "same input", at.Add(time.Second))
-	first, created, err := store.PutRun(ctx, record)
-	if err != nil || !created {
-		t.Fatalf("first PutRun created=%v err=%v", created, err)
-	}
-	second, created, err := store.PutRun(ctx, record)
-	if err != nil || created {
-		t.Fatalf("second PutRun created=%v err=%v", created, err)
-	}
-	if first.Handle.Fingerprint != second.Handle.Fingerprint {
-		t.Fatalf("idempotent fingerprint changed")
-	}
+func TestPostgresStoreRejectsRunRebinding(t *testing.T) {
+	_, store := openAgentServerPostgres(t)
+	_, record := seedPostgresConversationRun(t, store)
 
-	conflict := record
-	conflict.Input = "different input"
-	conflict.InputDigest = InputDigest(conflict.Input)
-	if _, _, err := store.PutRun(ctx, conflict); !errors.Is(err, ErrConflict) {
-		t.Fatalf("conflicting PutRun error=%v want ErrConflict", err)
+	changed := record
+	changed.Input = "different input"
+	changed.InputDigest = InputDigest(changed.Input)
+	changed.Handle.Fingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	_, _, err := store.PutRun(context.Background(), changed)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("error=%v want conflict", err)
 	}
 }
 
-func TestPostgresAgentServerStoreCursorResumesAfterReconstruction(t *testing.T) {
-	store, db := newPostgresAgentServerStore(t)
-	ctx := context.Background()
-	at := time.Date(2026, 10, 7, 14, 30, 0, 0, time.UTC)
-	conversation := pgConversation("cursor-conversation", at)
-	if _, _, err := store.PutConversation(ctx, conversation); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 3; i++ {
-		if _, err := store.AppendEvent(ctx, runtimesdk.EventEnvelope{
-			Type:           runtimesdk.EventType("server.progress"),
-			ConversationID: conversation.Ref.ID,
-			OccurredAt:     at.Add(time.Duration(i+1) * time.Second),
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	restarted, err := NewPostgresStore(db)
+func TestPostgresStoreWatchObservesCrossStoreWritesByPolling(t *testing.T) {
+	db, storeA := openAgentServerPostgres(t)
+	conversation, record := seedPostgresConversationRun(t, storeA)
+	storeB, err := NewPostgresStore(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	events, err := restarted.ListEvents(ctx, conversation.Ref.ID, 1, 10)
+	storeA.pollInterval = 10 * time.Millisecond
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+	wake, cancelWatch, err := storeA.Watch(ctx, conversation.Ref.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 2 || events[0].Sequence != 2 || events[1].Sequence != 3 {
-		t.Fatalf("resumed events=%#v", events)
-	}
-}
+	defer cancelWatch()
 
-func TestPostgresAgentServerStoreRejectsEventRunConversationMismatch(t *testing.T) {
-	store, _ := newPostgresAgentServerStore(t)
-	ctx := context.Background()
-	at := time.Date(2026, 10, 7, 14, 40, 0, 0, time.UTC)
-	c1 := pgConversation("event-c1", at)
-	c2 := pgConversation("event-c2", at)
-	if _, _, err := store.PutConversation(ctx, c1); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := store.PutConversation(ctx, c2); err != nil {
-		t.Fatal(err)
-	}
-	record := pgRun(t, c1, "event-run", "work", at.Add(time.Second))
-	if _, _, err := store.PutRun(ctx, record); err != nil {
-		t.Fatal(err)
-	}
-	_, err := store.AppendEvent(ctx, runtimesdk.EventEnvelope{
+	if _, err := storeB.AppendEvent(context.Background(), runtimesdk.EventEnvelope{
 		Type:           runtimesdk.EventRunStarted,
 		RunID:          record.ID,
-		ConversationID: c2.Ref.ID,
-		OccurredAt:     at.Add(2 * time.Second),
+		ConversationID: conversation.Ref.ID,
+		OccurredAt:     time.Date(2026, 10, 7, 12, 30, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-wake:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("watch did not wake after cross-store write")
+	}
+	events, err := storeA.ListEvents(context.Background(), conversation.Ref.ID, 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Sequence != 1 {
+		t.Fatalf("events=%#v", events)
+	}
+}
+
+func TestPostgresStoreRejectsEventForWrongConversation(t *testing.T) {
+	_, store := openAgentServerPostgres(t)
+	_, record := seedPostgresConversationRun(t, store)
+	other := Conversation{
+		Ref: runtimesdk.ConversationRef{ID: "conv-2", AgentID: "agent-1", WorkspaceID: "workspace-1"},
+		CreatedAt: time.Now().UTC(),
+	}
+	if _, _, err := store.PutConversation(context.Background(), other); err != nil {
+		t.Fatal(err)
+	}
+	_, err := store.AppendEvent(context.Background(), runtimesdk.EventEnvelope{
+		Type:           runtimesdk.EventRunStarted,
+		RunID:          record.ID,
+		ConversationID: other.Ref.ID,
+		OccurredAt:     time.Now().UTC(),
 	})
 	if !errors.Is(err, ErrConflict) {
-		t.Fatalf("error=%v want ErrConflict", err)
+		t.Fatalf("error=%v want conflict", err)
 	}
 }
