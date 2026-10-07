@@ -43,7 +43,7 @@ func (f *fakeBackend) Cancel(context.Context, RunID, string) error         { ret
 func TestRuntimeStartBindsAgentWorkspaceToolsAndConversation(t *testing.T) {
 	catalog, err := NewToolCatalog([]ToolDescriptor{
 		{Name: "github", Protocol: ToolProtocolNative},
-		{Name: "knowledge", Protocol: ToolProtocolMCP, Endpoint: "https://mcp.example.test"},
+		{Name: "knowledge", Protocol: ToolProtocolMCP, Endpoint: "https://mcp.example.test", SnapshotDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 	})
 	if err != nil {
 		t.Fatal(err)

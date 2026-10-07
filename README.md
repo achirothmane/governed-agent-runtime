@@ -69,7 +69,17 @@ Runtime A3 adds an MCP transport boundary using the official MCP Go SDK:
 - remote MCP `ToolAnnotations` retained as descriptive hints, never trusted as runtime authority;
 - official MCP Go SDK v1.8.0 while preserving the Go 1.25 toolchain boundary.
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), and [MCP Transport A3](docs/mcp-transport.md).
+Runtime A4 adds the Agent Server service boundary:
+
+- bearer-authenticated REST endpoints for agents, conversations, runs, signals, and cancellation;
+- server-owned runtime construction so clients cannot inject backends or tool catalogs;
+- MCP snapshot binding enforced before a run may start;
+- idempotent run creation and fingerprint checks across retries;
+- replayable Server-Sent Events with `Last-Event-ID` / cursor resume;
+- strict bounded JSON request decoding and explicit conflict / retry semantics;
+- pluggable server metadata/event `Store`, with a concurrency-safe in-memory reference implementation.
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md).
 
 ## Effect boundary
 
