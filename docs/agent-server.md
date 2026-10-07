@@ -82,7 +82,7 @@ A client can resume with either:
 - `?after=<sequence>`; or
 - `Last-Event-ID: <sequence>`.
 
-The reference store uses edge-triggered watch notifications only to wake the stream. The stream always rereads ordered persisted events, so collapsed wakeups do not imply event loss.
+The Store wake-up channel is advisory only. MemoryStore uses process-local notifications; PostgreSQL Store uses periodic wakeups so writes from another server process are also discovered. The stream always rereads ordered persisted events, so wakeups are never treated as event evidence.
 
 A4 emits service-boundary events such as:
 
@@ -114,7 +114,7 @@ Execution-specific tool/result/completion events can be appended by the runtime/
 - a cancellation request proves all external work stopped;
 - server metadata persistence and the durable execution backend are one atomic transaction.
 
-The `Store` interface exists so a restart-durable PostgreSQL implementation can replace `MemoryStore` without changing the HTTP or runtime contracts.
+A4.1 now provides that restart-durable PostgreSQL implementation without changing the HTTP or runtime contracts. `MemoryStore` remains a local/test reference store.
 
 ## Event evidence semantics
 
@@ -128,6 +128,14 @@ This is deliberate. The service does not rewrite an accepted backend operation i
 
 For run creation, `event_persisted` describes whether this request persisted the `run.started` event. Idempotent retries do not claim that evidence again.
 
+## A4.1 persistence boundary
+
+The PostgreSQL Store persists conversations, immutable run bindings, and the ordered event log. Event sequence allocation is serialized per conversation inside the same transaction that writes the event, so concurrent writers cannot create duplicate or reordered sequence numbers.
+
+The wake-up mechanism intentionally remains weaker than the event log: it periodically wakes SSE readers, which then call `ListEvents(after)`. This makes replay correctness independent of process memory and independent of which Agent Server process wrote the event.
+
+The remaining non-atomic boundary is still explicit: Temporal durable execution and Agent Server metadata persistence are separate systems. A2 duplicate-start reconciliation makes retries safe, but A4.1 does not claim a distributed transaction between PostgreSQL and Temporal.
+
 ## Next boundary
 
-A4.1 is the restart-durable server store: PostgreSQL conversations, run bindings, and ordered event replay. After that, A5 can connect the first real engine (Data Engine) to the service without making process memory part of the product contract.
+A5 connects the first real engine, Data Engine, end-to-end through the Agent Server. The preferred first slice is read-only/profile execution before mutating data operations.
