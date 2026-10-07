@@ -5,7 +5,7 @@ on:
     branches: [feat/mcp-transport-a3]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   tidy:
@@ -18,10 +18,13 @@ jobs:
           cache: false
       - name: Tidy module
         run: go mod tidy
-      - name: Upload module files
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-a3-module-files
-          path: |
-            go.mod
-            go.sum
+      - name: Commit exact module files
+        run: |
+          if git diff --quiet -- go.mod go.sum; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add go.mod go.sum
+          git commit -m "Resolve MCP A3 module dependencies"
+          git push
