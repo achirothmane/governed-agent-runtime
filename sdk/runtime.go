@@ -37,30 +37,27 @@ func (r Runtime) validateBackend() error {
 	return nil
 }
 
-func (r Runtime) Start(ctx context.Context, req StartRequest) (RunHandle, error) {
+func (r Runtime) Bind(req StartRequest) (RunRequest, string, error) {
 	if err := r.Agent.Validate(); err != nil {
-		return RunHandle{}, fmt.Errorf("agent: %w", err)
-	}
-	if err := r.validateBackend(); err != nil {
-		return RunHandle{}, err
+		return RunRequest{}, "", fmt.Errorf("agent: %w", err)
 	}
 	if strings.TrimSpace(string(req.RunID)) == "" {
-		return RunHandle{}, errors.New("run id is required")
+		return RunRequest{}, "", errors.New("run id is required")
 	}
 	if strings.TrimSpace(string(req.ConversationID)) == "" {
-		return RunHandle{}, errors.New("conversation id is required")
+		return RunRequest{}, "", errors.New("conversation id is required")
 	}
 	if strings.TrimSpace(req.Input) == "" {
-		return RunHandle{}, errors.New("run input is required")
+		return RunRequest{}, "", errors.New("run input is required")
 	}
 
 	tools, err := r.Tools.Resolve(r.Agent.RequiredTools)
 	if err != nil {
-		return RunHandle{}, err
+		return RunRequest{}, "", err
 	}
 	for _, tool := range tools {
 		if tool.Protocol == ToolProtocolMCP && strings.TrimSpace(tool.SnapshotDigest) == "" {
-			return RunHandle{}, fmt.Errorf("mcp tool %q is not bound to a capability snapshot", tool.Name)
+			return RunRequest{}, "", fmt.Errorf("mcp tool %q is not bound to a capability snapshot", tool.Name)
 		}
 	}
 
@@ -76,12 +73,21 @@ func (r Runtime) Start(ctx context.Context, req StartRequest) (RunHandle, error)
 		Tools:     tools,
 		PolicyRef: r.Agent.PolicyRef,
 	}
-
 	fingerprint, err := run.Fingerprint()
 	if err != nil {
-		return RunHandle{}, fmt.Errorf("bind run: %w", err)
+		return RunRequest{}, "", fmt.Errorf("bind run: %w", err)
 	}
+	return run, fingerprint, nil
+}
 
+func (r Runtime) Start(ctx context.Context, req StartRequest) (RunHandle, error) {
+	if err := r.validateBackend(); err != nil {
+		return RunHandle{}, err
+	}
+	run, fingerprint, err := r.Bind(req)
+	if err != nil {
+		return RunHandle{}, err
+	}
 	handle, err := r.Backend.Start(ctx, run)
 	if err != nil {
 		return RunHandle{}, fmt.Errorf("start %s backend: %w", r.Backend.Name(), err)

@@ -44,6 +44,7 @@ All routes except `GET /healthz` require `Authorization: Bearer <token>`.
 - `GET /v1/conversations/{conversationID}`
 - `POST /v1/conversations/{conversationID}/runs`
 - `GET /v1/runs/{runID}`
+- `POST /v1/runs/{runID}/tools/{tool}` — A5 server-admitted read-only MCP invocation
 - `POST /v1/runs/{runID}/signals/{signal}`
 - `POST /v1/runs/{runID}/cancel`
 - `GET /v1/conversations/{conversationID}/events` as Server-Sent Events
@@ -90,7 +91,9 @@ A4 emits service-boundary events such as:
 - `run.signaled`
 - `run.cancel_requested`
 
-Execution-specific tool/result/completion events can be appended by the runtime/worker path as that event bridge is expanded.
+A5 now appends `tool.called`, `tool.returned`, and `tool.failed` for the bounded synchronous read-only MCP route. The event payload stores argument/result digests rather than raw rows or full results.
+
+Generic durable worker-driven tool execution remains a later slice; the A5 route must not be used for mutating capabilities.
 
 ## Capability boundary
 
