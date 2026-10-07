@@ -142,3 +142,8 @@ They remain separate from the older `agent_runtime_work` table because the two s
 ## Next slice
 
 A5 connects Data Engine as the first real engine through the Agent Server using read-only/profile capabilities first.
+
+
+## CI authority
+
+The merge gate is the repository's PostgreSQL 16 CI with `go test -race ./...`; documentation claims do not supersede that executable evidence.
