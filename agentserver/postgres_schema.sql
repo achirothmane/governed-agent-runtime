@@ -44,3 +44,29 @@ CREATE TABLE IF NOT EXISTS agent_server_events (
 
 CREATE INDEX IF NOT EXISTS agent_server_events_run_idx
     ON agent_server_events (run_id, sequence);
+
+
+CREATE TABLE IF NOT EXISTS agent_server_tool_invocations (
+    invocation_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    tool_protocol TEXT NOT NULL,
+    tool_endpoint TEXT NOT NULL,
+    tool_read_only BOOLEAN NOT NULL,
+    snapshot_digest TEXT NOT NULL,
+    arguments_json JSONB NOT NULL,
+    arguments_digest TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('PREPARED', 'FAILED', 'COMPLETE')),
+    result_json JSONB,
+    result_digest TEXT,
+    last_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    FOREIGN KEY (run_id, conversation_id)
+        REFERENCES agent_server_runs (run_id, conversation_id)
+        ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS agent_server_tool_invocations_run_idx
+    ON agent_server_tool_invocations (run_id, created_at, invocation_id);
