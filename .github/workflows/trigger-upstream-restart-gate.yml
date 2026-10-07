@@ -1,0 +1,85 @@
+name: Trigger upstream restart gate
+
+on:
+  push:
+    branches:
+      - experiment/trigger-governed-effect-v0
+    paths:
+      - "experiments/trigger-governed-effect/upstream-live/**"
+      - "experiments/trigger-governed-effect/governed-effect.mjs"
+      - ".github/workflows/trigger-upstream-restart-gate.yml"
+  pull_request:
+    paths:
+      - "experiments/trigger-governed-effect/upstream-live/**"
+      - "experiments/trigger-governed-effect/governed-effect.mjs"
+      - ".github/workflows/trigger-upstream-restart-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restart-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout experiment
+        uses: actions/checkout@v4
+        with:
+          path: experiment
+
+      - name: Checkout pinned Trigger.dev
+        uses: actions/checkout@v4
+        with:
+          repository: triggerdotdev/trigger.dev
+          ref: b983e069851a1e0ed1c558012103bf67117cdb96
+          path: trigger-upstream
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Inject bounded gate into pinned upstream tree
+        run: |
+          cp experiment/experiments/trigger-governed-effect/governed-effect.mjs             trigger-upstream/apps/webapp/test/governed-effect-fixture.mjs
+          cp experiment/experiments/trigger-governed-effect/upstream-live/governed-effect-restart.integration.test.ts             trigger-upstream/apps/webapp/test/governed-effect-restart.integration.test.ts
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: pnpm
+          cache-dependency-path: trigger-upstream/pnpm-lock.yaml
+
+      - name: Pre-pull testcontainer images
+        run: |
+          docker pull postgres:14 &
+          p1=$!
+          docker pull redis:7.2 &
+          p2=$!
+          docker pull testcontainers/ryuk:0.14.0 &
+          p3=$!
+          wait $p1 $p2 $p3
+
+      - name: Install pinned upstream dependencies
+        working-directory: trigger-upstream
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate pinned upstream clients
+        working-directory: trigger-upstream
+        run: pnpm run generate
+
+      - name: Run restart gate on real Trigger RunEngine
+        working-directory: trigger-upstream/apps/webapp
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          SESSION_SECRET: secret
+          MAGIC_LINK_SECRET: secret
+          ENCRYPTION_KEY: dummy-encryption-keeeey-32-bytes
+          DEPLOY_REGISTRY_HOST: docker.io
+          CLICKHOUSE_URL: http://default:password@localhost:8123
+        run: pnpm exec vitest run test/governed-effect-restart.integration.test.ts --no-file-parallelism --reporter=default
