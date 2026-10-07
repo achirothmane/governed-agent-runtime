@@ -250,3 +250,31 @@ func TestActivityRecordsFailureAndAllowsTemporalRetry(t *testing.T) {
 		t.Fatalf("state=%s want COMPLETE", record.State)
 	}
 }
+
+func TestResultDigestIgnoresEquivalentStructuredJSONFormatting(t *testing.T) {
+	first := mcptransport.Result{
+		Tool:           "data.profile",
+		SnapshotDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		StructuredContent: json.RawMessage(
+			"{\"stage\":\"PRE_SEMANTIC_PROFILE\",\"decision\":\"KNOWN\",\"meta\":{\"b\":2,\"a\":1}}",
+		),
+	}
+	second := mcptransport.Result{
+		Tool:           "data.profile",
+		SnapshotDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		StructuredContent: json.RawMessage(
+			"{ \"meta\": { \"a\": 1, \"b\": 2 }, \"decision\": \"KNOWN\", \"stage\": \"PRE_SEMANTIC_PROFILE\" }",
+		),
+	}
+	a, err := ResultDigest(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ResultDigest(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != b {
+		t.Fatalf("semantic-equivalent result digests differ: %s != %s", a, b)
+	}
+}
