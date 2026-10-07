@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/achirothmane/governed-agent-runtime/mcptransport"
 	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 )
 
@@ -25,6 +26,12 @@ var (
 type RuntimeProvider interface {
 	Agent(context.Context, runtimesdk.AgentID) (runtimesdk.AgentSpec, error)
 	Runtime(context.Context, runtimesdk.AgentID) (runtimesdk.Runtime, error)
+}
+
+// ToolInvoker is the server-owned invocation boundary for run-scoped tools.
+// A5 uses it only for explicitly admitted read-only MCP tools.
+type ToolInvoker interface {
+	Invoke(context.Context, runtimesdk.ToolDescriptor, map[string]any) (mcptransport.Result, error)
 }
 
 // StaticProvider is useful for composition, tests, and small deployments. Dynamic
