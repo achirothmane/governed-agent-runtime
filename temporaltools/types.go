@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/achirothmane/governed-agent-runtime/mcptransport"
@@ -95,12 +96,33 @@ func ArgumentsDigest(arguments map[string]any) (string, error) {
 }
 
 func ResultDigest(result mcptransport.Result) (string, error) {
-	payload, err := json.Marshal(result)
+	payload, err := canonicalSemanticJSON(result)
 	if err != nil {
 		return "", err
 	}
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func canonicalSemanticJSON(value any) ([]byte, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder.UseNumber()
+	var normalized any
+	if err := decoder.Decode(&normalized); err != nil {
+		return nil, err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, errors.New("canonical JSON contains multiple values")
+		}
+		return nil, err
+	}
+	return json.Marshal(normalized)
 }
 
 func SameBinding(a, b InvocationRef) bool {
