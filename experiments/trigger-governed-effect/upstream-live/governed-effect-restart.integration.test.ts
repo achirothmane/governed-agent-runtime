@@ -73,38 +73,41 @@ class PostgresDestination {
   constructor(private readonly prisma: any) {}
 
   async reset() {
-    await this.prisma.$executeRawUnsafe(`
-DROP TABLE IF EXISTS "GovEffectReceipt";
-DROP TABLE IF EXISTS "GovEffectLedger";
-DROP TABLE IF EXISTS "GovEffectTarget";
+    // Prisma sends raw statements through PostgreSQL prepared statements, which
+    // intentionally accept one command at a time. Keep setup explicit so this
+    // gate tests the recovery protocol rather than a driver-specific SQL batch.
+    const statements = [
+      `DROP TABLE IF EXISTS "GovEffectReceipt"`,
+      `DROP TABLE IF EXISTS "GovEffectLedger"`,
+      `DROP TABLE IF EXISTS "GovEffectTarget"`,
+      `CREATE TABLE "GovEffectTarget" (
+        target_id text PRIMARY KEY,
+        owner_id text NOT NULL,
+        generation bigint NOT NULL,
+        authority_live boolean NOT NULL,
+        semantic_state text NOT NULL
+      )`,
+      `CREATE TABLE "GovEffectLedger" (
+        id bigserial PRIMARY KEY,
+        effect_id text NOT NULL,
+        target_id text NOT NULL,
+        amount bigint NOT NULL
+      )`,
+      `CREATE TABLE "GovEffectReceipt" (
+        effect_id text PRIMARY KEY,
+        target_id text NOT NULL,
+        ledger_id bigint NOT NULL,
+        result jsonb NOT NULL
+      )`,
+      `INSERT INTO "GovEffectTarget"
+        (target_id, owner_id, generation, authority_live, semantic_state)
+       VALUES
+        ('account:1', 'worker-b', 2, true, 'balance:v7')`,
+    ];
 
-CREATE TABLE "GovEffectTarget" (
-  target_id text PRIMARY KEY,
-  owner_id text NOT NULL,
-  generation bigint NOT NULL,
-  authority_live boolean NOT NULL,
-  semantic_state text NOT NULL
-);
-
-CREATE TABLE "GovEffectLedger" (
-  id bigserial PRIMARY KEY,
-  effect_id text NOT NULL,
-  target_id text NOT NULL,
-  amount bigint NOT NULL
-);
-
-CREATE TABLE "GovEffectReceipt" (
-  effect_id text PRIMARY KEY,
-  target_id text NOT NULL,
-  ledger_id bigint NOT NULL,
-  result jsonb NOT NULL
-);
-
-INSERT INTO "GovEffectTarget"
-  (target_id, owner_id, generation, authority_live, semantic_state)
-VALUES
-  ('account:1', 'worker-b', 2, true, 'balance:v7');
-`);
+    for (const statement of statements) {
+      await this.prisma.$executeRawUnsafe(statement);
+    }
   }
 
   async observe(effectId: string) {
