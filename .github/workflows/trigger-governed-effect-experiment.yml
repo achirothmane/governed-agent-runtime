@@ -1,0 +1,31 @@
+name: Trigger governed effect experiment
+
+on:
+  push:
+    branches:
+      - experiment/trigger-governed-effect-v0
+    paths:
+      - "experiments/trigger-governed-effect/**"
+      - ".github/workflows/trigger-governed-effect-experiment.yml"
+  pull_request:
+    paths:
+      - "experiments/trigger-governed-effect/**"
+      - ".github/workflows/trigger-governed-effect-experiment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify pinned Trigger.dev contract
+        run: node experiments/trigger-governed-effect/verify-upstream-contract.mjs
+      - name: Run governed effect falsification corpus
+        run: node --test experiments/trigger-governed-effect/governed-effect.test.mjs
