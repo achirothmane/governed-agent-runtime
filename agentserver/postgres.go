@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -279,7 +278,7 @@ func (s *PostgresStore) ListEvents(ctx context.Context, conversationID runtimesd
 	if limit <= 0 {
 		return nil, errors.New("event list limit must be positive")
 	}
-	if after > math.MaxInt64 {
+	if after > uint64(1<<63-1) {
 		return nil, errors.New("event cursor exceeds postgres bigint range")
 	}
 	var exists bool
