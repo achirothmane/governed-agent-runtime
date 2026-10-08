@@ -230,7 +230,12 @@ func runA7Integration(t *testing.T, live, native bool) {
 		t.Skip("DATA_ENGINE_MCP_URL and DATABASE_URL are required")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	timeout := 3 * time.Minute
+	if live {
+		// Actual CPU model inference requires bounded time for two calls.
+		timeout = 6 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	db, err := sql.Open("pgx", databaseURL)
@@ -278,12 +283,17 @@ func runA7Integration(t *testing.T, live, native bool) {
 		defer modelServer.Close()
 		modelEndpoint = modelServer.URL
 	}
-	openAIClient := openai.NewClient(
+	options := []option.RequestOption{
 		option.WithUnsafeAllowHTTP(),
 		option.WithBaseURL(modelEndpoint),
 		option.WithAPIKey(apiKey),
 		option.WithMaxRetries(0),
-	)
+	}
+	if live && native {
+		// Experiment-only local generation control; never grant model authority.
+		options = append(options, option.WithJSONSet("temperature", float64(0)))
+	}
+	openAIClient := openai.NewClient(options...)
 	var reasoner agentloop.Reasoner
 	if native {
 		reasoner, err = openairesponses.NewNativeWithClient(
