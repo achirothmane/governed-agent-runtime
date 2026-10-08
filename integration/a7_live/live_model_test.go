@@ -69,11 +69,11 @@ func TestActualLocalModelProposesProfileThenFinishes(t *testing.T) {
 			ID: "local-conversation", AgentID: "profile-agent", WorkspaceID: "data",
 		},
 		Workspace: runtimesdk.WorkspaceSpec{ID: "data", Kind: runtimesdk.WorkspaceRemote},
-		Input: `Call data.profile with identity_field="id" and rows=[{"id":"a","price":20},{"id":"a","price":21}]. After the profile returns, tell me whether the raw values conflict. Do not FINISH before calling the tool.`,
+		Input:     `Call data.profile with identity_field="id" and rows=[{"id":"a","price":20},{"id":"a","price":21}]. After the profile returns, tell me whether the raw values conflict. Do not FINISH before calling the tool.`,
 		Tools: []runtimesdk.ToolDescriptor{{
 			Name: "data.profile", Protocol: runtimesdk.ToolProtocolMCP,
 			Endpoint: "http://127.0.0.1:8090/mcp",
-			Title: "Profile raw data", Description: "Analyze raw rows and detect conflicting values for identical identities; read-only.",
+			Title:    "Profile raw data", Description: "Analyze raw rows and detect conflicting values for identical identities; read-only.",
 			InputSchema: schema, ReadOnly: true, SnapshotDigest: strings.Repeat("a", 64),
 		}},
 	}
