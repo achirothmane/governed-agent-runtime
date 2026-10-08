@@ -4,9 +4,9 @@ go 1.25.4
 
 require (
 	github.com/achirothmane/aegis-ege/governedaction v0.0.0-20261003012850-20f118dae868
+	github.com/google/jsonschema-go v0.4.3
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/google/jsonschema-go v0.4.3
 	github.com/openai/openai-go/v3 v3.73.0
 	go.temporal.io/api v1.63.4
 	go.temporal.io/sdk v1.48.0
