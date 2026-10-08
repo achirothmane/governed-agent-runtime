@@ -8,6 +8,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 
 	"github.com/achirothmane/governed-agent-runtime/agentloop"
+	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 	"github.com/achirothmane/governed-agent-runtime/temporaltools"
 )
 
@@ -122,10 +123,34 @@ func (a ReasonActivity) Execute(ctx context.Context, req ReasoningRequest) (Reas
 
 func (a ReasonActivity) materializeDecision(
 	ctx context.Context,
-	run interface{ GetID() },
+	run runtimesdk.RunRequest,
 	record DecisionRecord,
 ) (ReasoningResult, error) {
-	panic("unreachable")
+	if err := record.Validate(); err != nil {
+		return ReasoningResult{}, nonRetryable("INVALID_STORED_DECISION", err)
+	}
+	result := ReasoningResult{
+		Step:           record.Step,
+		Kind:           record.Decision.Kind,
+		Message:        record.Decision.Message,
+		DecisionDigest: record.DecisionDigest,
+	}
+	if record.Decision.Kind != agentloop.DecisionTool {
+		return result, nil
+	}
+	ref, args, err := toolRef(run, record.Step, record.Decision)
+	if err != nil {
+		return ReasoningResult{}, nonRetryable("INVALID_TOOL_DECISION", err)
+	}
+	stored, _, err := a.Invocations.Prepare(ctx, ref, args)
+	if err != nil {
+		return ReasoningResult{}, fmt.Errorf("prepare durable tool invocation: %w", err)
+	}
+	if !temporaltools.SameBinding(stored.Ref, ref) {
+		return ReasoningResult{}, nonRetryable("TOOL_INVOCATION_CONFLICT", temporaltools.ErrInvocationConflict)
+	}
+	result.Invocation = &ref
+	return result, nil
 }
 
 func (a ReasonActivity) loadObservations(ctx context.Context, refs []ObservationRef, currentStep int) ([]agentloop.Observation, error) {
