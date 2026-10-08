@@ -1,0 +1,43 @@
+name: A7.1 Native Function Calling Experiment
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/a7-1-native-eval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-model:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/a7-converged-live-model'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      A7_LIVE_MODEL_BASE_URL: http://127.0.0.1:11434/v1/
+      A7_LIVE_MODEL: qwen2.5:1.5b-instruct
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - name: Start CPU Ollama
+        run: |
+          docker run --rm -d --name a71-ollama -p 127.0.0.1:11434:11434 ollama/ollama:0.13.3
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Fetch free local model
+        run: docker exec a71-ollama ollama pull "$A7_LIVE_MODEL"
+      - name: Falsify native TOOL then FINISH on actual model
+        run: go test -tags=integration -v -count=1 -timeout=6m -run '^TestActualLocalNativeModelProposesProfileThenFinishes$' ./integration/a7_live
+      - name: Diagnostics
+        if: failure()
+        run: docker logs --tail=80 a71-ollama || true
+      - name: Stop Ollama
+        if: always()
+        run: docker stop a71-ollama || true
