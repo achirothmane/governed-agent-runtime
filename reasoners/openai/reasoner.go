@@ -105,7 +105,7 @@ func (r *Reasoner) Decide(ctx context.Context, turn agentloop.Turn) (agentloop.D
 		return agentloop.Decision{}, fmt.Errorf("%w: OpenAI returned no response", agentloop.ErrInvalidDecision)
 	}
 
-	var calls []responses.ResponseFunctionToolCallItem
+	var calls []responses.ResponseFunctionToolCall
 	for _, item := range response.Output {
 		if item.Type == "function_call" {
 			calls = append(calls, item.AsFunctionCall())
@@ -259,7 +259,7 @@ func controlTool(name, description string) responses.ToolUnionParam {
 	}
 }
 
-func decisionFromCall(call responses.ResponseFunctionToolCallItem, bindings map[string]runtimesdk.ToolName) (agentloop.Decision, error) {
+func decisionFromCall(call responses.ResponseFunctionToolCall, bindings map[string]runtimesdk.ToolName) (agentloop.Decision, error) {
 	switch call.Name {
 	case finishFunction, askFunction, failFunction:
 		var payload struct {
