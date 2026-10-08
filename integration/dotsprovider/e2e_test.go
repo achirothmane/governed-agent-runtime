@@ -234,17 +234,17 @@ func TestCurrentPortfolioSnapshotFlowsThroughOpenAIAdapterAndDurableGate(t *test
 
 	if evidencePath := strings.TrimSpace(os.Getenv("DOT_PROVIDER_EVIDENCE_FILE")); evidencePath != "" {
 		evidence := map[string]any{
-			"state":                    "PASS",
-			"snapshot_digest":          snapshot.SnapshotDigest,
-			"decision":                 record,
-			"provider_requests":        requestCount,
-			"provider_source_leak":     false,
-			"tool_invocations":         toolCount,
-			"transport":                "local-fake-openai-responses",
-			"live_provider_call":       false,
-			"paid_provider_call":       false,
-			"d3_validation_before_d4":  true,
-			"durable_postgres_commit":  true,
+			"state":                   "PASS",
+			"snapshot_digest":         snapshot.SnapshotDigest,
+			"decision":                record,
+			"provider_requests":       requestCount,
+			"provider_source_leak":    false,
+			"tool_invocations":        toolCount,
+			"transport":               "local-fake-openai-responses",
+			"live_provider_call":      false,
+			"paid_provider_call":      false,
+			"d3_validation_before_d4": true,
+			"durable_postgres_commit": true,
 		}
 		evidenceRaw, err := json.MarshalIndent(evidence, "", "  ")
 		if err != nil {
