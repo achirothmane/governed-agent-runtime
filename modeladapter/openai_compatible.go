@@ -170,14 +170,18 @@ func (a Adapter) Decide(ctx context.Context, turn agentloop.Turn) (agentloop.Dec
 	}
 	client := cfg.Client
 	if client == nil {
-		client = &http.Client{
-			Timeout: 90 * time.Second,
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		client = &http.Client{}
 	}
-	resp, err := client.Do(req)
+	// Always reject redirects, including with caller-injected clients, so that
+	// model credentials and sensitive prompt bodies cannot be forwarded.
+	safeClient := *client
+	if safeClient.Timeout == 0 {
+		safeClient.Timeout = 90 * time.Second
+	}
+	safeClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := safeClient.Do(req)
 	if err != nil {
 		return agentloop.Decision{}, fmt.Errorf("model provider request failed: %w", err)
 	}
