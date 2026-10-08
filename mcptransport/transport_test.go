@@ -134,6 +134,9 @@ func TestDescriptorBindsSnapshotWithoutTrustingReadOnlyHint(t *testing.T) {
 	if desc.SnapshotDigest != snapshot.Digest {
 		t.Fatalf("snapshot digest = %q, want %q", desc.SnapshotDigest, snapshot.Digest)
 	}
+	if desc.Description != "read a repository" || len(desc.InputSchema) == 0 || len(desc.OutputSchema) == 0 {
+		t.Fatalf("model-visible schema metadata was not projected: %#v", desc)
+	}
 	if desc.ReadOnly {
 		t.Fatal("remote MCP readOnly hint was incorrectly promoted into runtime authority")
 	}
