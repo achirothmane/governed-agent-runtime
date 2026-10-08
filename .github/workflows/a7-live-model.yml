@@ -1,15 +1,6 @@
 name: A7 Live Local Model
 
 on:
-  pull_request:
-    paths:
-      - "integration/a7_live/**"
-      - "integration/a7/**"
-      - "reasoners/openairesponses/**"
-      - "sdk/**"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/a7-live-model.yml"
   workflow_dispatch:
 
 permissions:
