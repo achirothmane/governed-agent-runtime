@@ -211,6 +211,20 @@ func TestActualLocalModelDrivesDurableDataEngineLoop(t *testing.T) {
 
 // Opt-in proof for a real model making native function calls through real
 // Temporal, PostgreSQL, and the actual Data Engine MCP instance.
+func TestActualLocalObservedTerminalDrivesDurableDataEngineLoop(t *testing.T) {
+	base := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL_BASE_URL"))
+	model := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL"))
+	if base == "" || model == "" {
+		t.Skip("real local model inference is opt-in")
+	}
+	if !strings.HasPrefix(base, "http://127.0.0.1:") && !strings.HasPrefix(base, "http://localhost:") {
+		t.Fatal("real local model test requires loopback Ollama")
+	}
+	t.Setenv("A7_LIVE_OBSERVED_TERMINAL", "1")
+	runA7Integration(t, true, true)
+}
+
+// Existing unrestricted native A7.1 candidate: remains separately falsifiable.
 func TestActualLocalNativeModelDrivesDurableDataEngineLoop(t *testing.T) {
 	base := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL_BASE_URL"))
 	model := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL"))
@@ -295,7 +309,13 @@ func runA7Integration(t *testing.T, live, native bool) {
 	}
 	openAIClient := openai.NewClient(options...)
 	var reasoner agentloop.Reasoner
-	if native {
+	if native && live && os.Getenv("A7_LIVE_OBSERVED_TERMINAL") == "1" {
+		reasoner, err = openairesponses.NewObservedTerminalWithClients(
+			openairesponses.Config{Model: modelName},
+			sdkNativeResponsesClient{client: openAIClient},
+			sdkResponsesClient{client: openAIClient},
+		)
+	} else if native {
 		reasoner, err = openairesponses.NewNativeWithClient(
 			openairesponses.Config{Model: modelName},
 			sdkNativeResponsesClient{client: openAIClient},
