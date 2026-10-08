@@ -1,9 +1,6 @@
 name: A7.1 Tool Choice Counterfactual Controls
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/a7-tool-choice-controls.yml"
   workflow_dispatch:
 
 permissions:
