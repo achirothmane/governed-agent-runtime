@@ -1,6 +1,9 @@
 package sdk
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestRunFingerprintIsStableAcrossRequiredToolDeclarationOrder(t *testing.T) {
 	catalog, err := NewToolCatalog([]ToolDescriptor{
@@ -38,5 +41,48 @@ func TestRunFingerprintIsStableAcrossRequiredToolDeclarationOrder(t *testing.T) 
 	}
 	if f1 != f2 {
 		t.Fatalf("equivalent capability sets must bind identically: %s != %s", f1, f2)
+	}
+}
+
+func TestRunFingerprintBindsToolSchema(t *testing.T) {
+	base := RunRequest{
+		ID:           "run-schema",
+		Conversation: ConversationRef{ID: "conv", AgentID: "agent", WorkspaceID: "ws"},
+		Workspace:    WorkspaceSpec{ID: "ws", Kind: WorkspaceRemote},
+		Input:        "work",
+		Tools: []ToolDescriptor{{
+			Name:           "data.profile",
+			Protocol:       ToolProtocolMCP,
+			Endpoint:       "https://data.example/mcp",
+			ReadOnly:       true,
+			SnapshotDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			InputSchema:    json.RawMessage(`{"type":"object","properties":{"rows":{"type":"array"}}}`),
+		}},
+	}
+	first, err := base.Fingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := base
+	changed.Tools = append([]ToolDescriptor(nil), base.Tools...)
+	changed.Tools[0].InputSchema = json.RawMessage(`{"type":"object","properties":{"rows":{"type":"array"},"identity_field":{"type":"string"}}}`)
+	second, err := changed.Fingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("changing a model-visible tool schema must change the run fingerprint")
+	}
+}
+
+func TestToolDescriptorRejectsInvalidModelVisibleSchema(t *testing.T) {
+	tool := ToolDescriptor{
+		Name:        "data.profile",
+		Protocol:    ToolProtocolMCP,
+		Endpoint:    "https://data.example/mcp",
+		InputSchema: json.RawMessage(`{"type":`),
+	}
+	if err := tool.Validate(); err == nil {
+		t.Fatal("invalid tool input schema must be rejected")
 	}
 }
