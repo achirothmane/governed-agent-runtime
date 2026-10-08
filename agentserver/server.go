@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/achirothmane/governed-agent-runtime/agentloop"
 	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 )
 
@@ -28,6 +29,9 @@ type Config struct {
 	Provider          RuntimeProvider
 	Invoker           ToolInvoker
 	DurableInvoker    DurableToolInvoker
+	Reasoner          agentloop.Reasoner
+	AgentRunner       AgentRunner
+	AgentMaxSteps     int
 	Store             Store
 	BearerToken       string
 	Clock             func() time.Time
@@ -40,6 +44,7 @@ type Service struct {
 	provider          RuntimeProvider
 	invoker           ToolInvoker
 	durableInvoker    DurableToolInvoker
+	agentRunner       AgentRunner
 	store             Store
 	bearerToken       string
 	clock             func() time.Time
@@ -82,11 +87,20 @@ func New(config Config) (*Service, error) {
 	if invoker == nil {
 		invoker, _ = config.Provider.(ToolInvoker)
 	}
+	runner := config.AgentRunner
+	if runner == nil && config.Reasoner != nil && config.DurableInvoker != nil {
+		runner = agentloop.Engine{
+			Reasoner: config.Reasoner,
+			Tools:    config.DurableInvoker,
+			MaxSteps: config.AgentMaxSteps,
+		}
+	}
 
 	s := &Service{
 		provider:          config.Provider,
 		invoker:           invoker,
 		durableInvoker:    config.DurableInvoker,
+		agentRunner:       runner,
 		store:             config.Store,
 		bearerToken:       config.BearerToken,
 		clock:             config.Clock,
@@ -107,6 +121,7 @@ func (s *Service) routes() {
 	s.mux.HandleFunc("POST /v1/conversations/{conversationID}/runs", s.handleStartRun)
 	s.mux.HandleFunc("GET /v1/conversations/{conversationID}/events", s.handleEvents)
 	s.mux.HandleFunc("GET /v1/runs/{runID}", s.handleGetRun)
+	s.mux.HandleFunc("POST /v1/runs/{runID}/execute", s.handleExecuteAgent)
 	s.mux.HandleFunc("POST /v1/runs/{runID}/tools/{tool}", s.handleInvokeTool)
 	s.mux.HandleFunc("POST /v1/runs/{runID}/signals/{signal}", s.handleSignalRun)
 	s.mux.HandleFunc("POST /v1/runs/{runID}/cancel", s.handleCancelRun)

@@ -128,7 +128,19 @@ Runtime A5.2 turns the durable tool plane into a runnable composition:
 - repeated invocation IDs recover the stored COMPLETE result without another activity execution.
 
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md).
+Runtime A6 adds the first provider-neutral agent decision loop:
+
+- structured Reasoner decisions: `TOOL | FINISH | ASK | FAIL`;
+- exact bound-run capability check before reasoning;
+- unbound or non-read-only tool selections rejected before execution;
+- deterministic per-step invocation IDs feeding the A5.1 durable tool path;
+- normalized tool results returned to the next reasoning turn as observations;
+- Agent Server `POST /v1/runs/{runID}/execute`;
+- no chain-of-thought requirement or persistence;
+- terminal `run.completed / run.waiting / run.failed` evidence without copying raw observations.
+
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md).
 
 ## Effect boundary
 
