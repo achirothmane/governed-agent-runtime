@@ -18,9 +18,9 @@ import (
 const DefaultEndpoint = "https://api.openai.com/v1/responses"
 
 var (
-	ErrInvalidConfig  = errors.New("invalid OpenAI Dot reasoner configuration")
-	ErrProvider       = errors.New("OpenAI Dot reasoner provider error")
-	ErrInvalidOutput  = errors.New("invalid OpenAI Dot decision output")
+	ErrInvalidConfig   = errors.New("invalid OpenAI Dot reasoner configuration")
+	ErrProvider        = errors.New("OpenAI Dot reasoner provider error")
+	ErrInvalidOutput   = errors.New("invalid OpenAI Dot decision output")
 	ErrProviderRefusal = errors.New("OpenAI Dot reasoner refusal")
 )
 
@@ -62,15 +62,15 @@ func New(config Config) (*Reasoner, error) {
 }
 
 type boundedReasoningView struct {
-	SnapshotDigest     string                         `json:"snapshot_digest"`
-	StructuralReview   string                         `json:"structural_review"`
-	NowProjects        []string                       `json:"now_projects"`
-	NowProjectState    []portfoliocontext.ProjectState `json:"now_project_state"`
-	RunnableItems      []portfoliocontext.RunnableItem `json:"runnable_items"`
-	VerifiedContracts  []portfoliocontext.ContractEdge `json:"verified_contracts"`
-	HumanFinalOn       []string                       `json:"human_final_on"`
-	ExecutionPrinciple string                         `json:"execution_principle"`
-	WIP                portfoliocontext.WIP            `json:"wip"`
+	SnapshotDigest     string                            `json:"snapshot_digest"`
+	StructuralReview   string                            `json:"structural_review"`
+	NowProjects        []string                          `json:"now_projects"`
+	NowProjectState    []portfoliocontext.ProjectState   `json:"now_project_state"`
+	RunnableItems      []portfoliocontext.RunnableItem   `json:"runnable_items"`
+	VerifiedContracts  []portfoliocontext.ContractEdge   `json:"verified_contracts"`
+	HumanFinalOn       []string                          `json:"human_final_on"`
+	ExecutionPrinciple string                            `json:"execution_principle"`
+	WIP                portfoliocontext.WIP               `json:"wip"`
 }
 
 func boundView(view portfoliocontext.ReasoningView) boundedReasoningView {
@@ -88,9 +88,9 @@ func boundView(view portfoliocontext.ReasoningView) boundedReasoningView {
 }
 
 type responsesRequest struct {
-	Model string          `json:"model"`
-	Input []inputMessage  `json:"input"`
-	Text  textConfig      `json:"text"`
+	Model string         `json:"model"`
+	Input []inputMessage `json:"input"`
+	Text  textConfig     `json:"text"`
 }
 
 type inputMessage struct {
