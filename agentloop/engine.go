@@ -133,10 +133,10 @@ func findTool(tools []runtimesdk.ToolDescriptor, name runtimesdk.ToolName) (runt
 
 func invocationID(runID runtimesdk.RunID, step int, decision Decision) (string, error) {
 	payload, err := json.Marshal(struct {
-		Run       runtimesdk.RunID        `json:"run"`
-		Step      int                     `json:"step"`
-		Tool      runtimesdk.ToolName     `json:"tool"`
-		Arguments map[string]any          `json:"arguments,omitempty"`
+		Run       runtimesdk.RunID    `json:"run"`
+		Step      int                 `json:"step"`
+		Tool      runtimesdk.ToolName `json:"tool"`
+		Arguments map[string]any      `json:"arguments,omitempty"`
 	}{
 		Run:       runID,
 		Step:      step,

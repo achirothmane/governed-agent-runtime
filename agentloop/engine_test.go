@@ -133,8 +133,8 @@ func TestEngineToolObservationThenFinish(t *testing.T) {
 
 func TestEngineRejectsUnboundToolBeforeExecution(t *testing.T) {
 	reasoner := &scriptedReasoner{decisions: []Decision{{
-		Kind: DecisionTool,
-		Tool: "data.delete",
+		Kind:      DecisionTool,
+		Tool:      "data.delete",
 		Arguments: map[string]any{},
 	}}}
 	executor := &recordingExecutor{}
@@ -149,8 +149,8 @@ func TestEngineRejectsUnboundToolBeforeExecution(t *testing.T) {
 
 func TestEngineRejectsMutatingToolBeforeExecution(t *testing.T) {
 	reasoner := &scriptedReasoner{decisions: []Decision{{
-		Kind: DecisionTool,
-		Tool: "data.profile",
+		Kind:      DecisionTool,
+		Tool:      "data.profile",
 		Arguments: map[string]any{},
 	}}}
 	executor := &recordingExecutor{}

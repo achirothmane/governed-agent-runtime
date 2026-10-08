@@ -21,10 +21,10 @@ const (
 )
 
 type Decision struct {
-	Kind      DecisionKind          `json:"kind"`
-	Tool      runtimesdk.ToolName   `json:"tool,omitempty"`
-	Arguments map[string]any        `json:"arguments,omitempty"`
-	Message   string                `json:"message,omitempty"`
+	Kind      DecisionKind        `json:"kind"`
+	Tool      runtimesdk.ToolName `json:"tool,omitempty"`
+	Arguments map[string]any      `json:"arguments,omitempty"`
+	Message   string              `json:"message,omitempty"`
 }
 
 type Observation struct {
@@ -35,10 +35,10 @@ type Observation struct {
 }
 
 type Turn struct {
-	Run          runtimesdk.RunRequest      `json:"run"`
-	AgentMission string                     `json:"agent_mission"`
-	Step         int                        `json:"step"`
-	Observations []Observation              `json:"observations,omitempty"`
+	Run          runtimesdk.RunRequest `json:"run"`
+	AgentMission string                `json:"agent_mission"`
+	Step         int                   `json:"step"`
+	Observations []Observation         `json:"observations,omitempty"`
 }
 
 type Reasoner interface {
@@ -73,9 +73,9 @@ type Outcome struct {
 }
 
 var (
-	ErrUnboundTool       = errors.New("agent selected a tool not bound to the run")
-	ErrMutatingTool      = errors.New("A6 supports durable read-only tools only")
-	ErrInvalidDecision   = errors.New("invalid agent decision")
+	ErrUnboundTool     = errors.New("agent selected a tool not bound to the run")
+	ErrMutatingTool    = errors.New("A6 supports durable read-only tools only")
+	ErrInvalidDecision = errors.New("invalid agent decision")
 )
 
 func (d Decision) Validate() error {
