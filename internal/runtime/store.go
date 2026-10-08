@@ -92,7 +92,7 @@ func (b PlanBinding) Validate() error {
 
 type WorkRecord struct {
 	Admission          *governance.SignedAdmission `json:"admission,omitempty"`
-	Resolution         *EffectResolution            `json:"effect_resolution,omitempty"`
+	Resolution         *EffectResolution           `json:"effect_resolution,omitempty"`
 	Sequence           uint64                      `json:"sequence"`
 	Event              Event                       `json:"event"`
 	State              WorkState                   `json:"state"`
