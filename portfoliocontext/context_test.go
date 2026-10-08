@@ -12,31 +12,31 @@ func fixtureSnapshot(t *testing.T, state string) []byte {
 	t.Helper()
 	doc := map[string]any{
 		"schema_version": 1,
-		"state": state,
-		"reasons": []any{},
+		"state":          state,
+		"reasons":        []any{},
 		"source_bindings": []any{
 			map[string]any{"path": "SYSTEM-MAP.md", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 		},
 		"projection": map[string]any{
 			"structural_review": "2026-10-08",
-			"now_projects": []any{"portfolio-dot"},
+			"now_projects":      []any{"portfolio-dot"},
 			"now_project_state": []any{
 				map[string]any{"id": "portfolio-dot", "freshness": "FRESH", "completeness": "COMPLETE"},
 			},
 			"runnable_items": []any{
 				map[string]any{
-					"id": "dots-context-002",
-					"project": "portfolio-dot",
-					"authority": "PREPARE",
-					"objective": "build context",
+					"id":                "dots-context-002",
+					"project":           "portfolio-dot",
+					"authority":         "PREPARE",
+					"objective":         "build context",
 					"evidence_required": []any{"digest"},
-					"stop_conditions": []any{"missing source"},
+					"stop_conditions":   []any{"missing source"},
 				},
 			},
-			"verified_contracts": []any{},
-			"human_final_on": []any{"merge", "publish"},
+			"verified_contracts":  []any{},
+			"human_final_on":      []any{"merge", "publish"},
 			"execution_principle": "priority-does-not-equal-execution-authority",
-			"wip": map[string]any{"now_cap": 3, "now_count": 1, "next_cap": 6, "next_count": 0},
+			"wip":                 map[string]any{"now_cap": 3, "now_count": 1, "next_cap": 6, "next_count": 0},
 		},
 	}
 	canonical, err := json.Marshal(doc)
