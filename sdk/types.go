@@ -32,11 +32,15 @@ const (
 )
 
 type ToolDescriptor struct {
-	Name           ToolName     `json:"name"`
-	Protocol       ToolProtocol `json:"protocol"`
-	Endpoint       string       `json:"endpoint,omitempty"`
-	ReadOnly       bool         `json:"read_only"`
-	SnapshotDigest string       `json:"snapshot_digest,omitempty"`
+	Name           ToolName        `json:"name"`
+	Protocol       ToolProtocol    `json:"protocol"`
+	Endpoint       string          `json:"endpoint,omitempty"`
+	Title          string          `json:"title,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	InputSchema    json.RawMessage `json:"input_schema,omitempty"`
+	OutputSchema   json.RawMessage `json:"output_schema,omitempty"`
+	ReadOnly       bool            `json:"read_only"`
+	SnapshotDigest string          `json:"snapshot_digest,omitempty"`
 }
 
 func (t ToolDescriptor) Validate() error {
@@ -54,6 +58,12 @@ func (t ToolDescriptor) Validate() error {
 		}
 	default:
 		return fmt.Errorf("unsupported tool protocol %q", t.Protocol)
+	}
+	if len(t.InputSchema) > 0 && !json.Valid(t.InputSchema) {
+		return errors.New("tool input schema must be valid JSON")
+	}
+	if len(t.OutputSchema) > 0 && !json.Valid(t.OutputSchema) {
+		return errors.New("tool output schema must be valid JSON")
 	}
 	return nil
 }

@@ -1,0 +1,50 @@
+name: A7.1 Tool Choice Compatibility Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ollama-compatibility:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/a7-converged-live-model'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      A7_PROBE_MODEL: qwen3:1.7b
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start pinned Ollama on loopback
+        run: |
+          docker run --rm -d --name a7-choice-ollama \
+            -p 127.0.0.1:11434:11434 \
+            -e OLLAMA_NUM_PARALLEL=1 \
+            -e OLLAMA_MAX_LOADED_MODELS=1 \
+            ollama/ollama:0.13.3
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Pull published model with tool capabilities
+        run: docker exec a7-choice-ollama ollama pull "$A7_PROBE_MODEL"
+      - name: Probe OpenAI Responses versus Chat Completions tool_choice
+        run: |
+          python3 scripts/a7_tool_choice_probe.py \
+            --base-url http://127.0.0.1:11434/v1 \
+            --model "$A7_PROBE_MODEL" \
+            --output a7-tool-choice-results.json
+      - name: Preserve falsification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a7-tool-choice-evidence
+          path: a7-tool-choice-results.json
+          if-no-files-found: ignore
+      - name: Inspect Ollama failures only
+        if: failure()
+        run: docker logs --tail=70 a7-choice-ollama || true
+      - name: Stop Ollama
+        if: always()
+        run: docker stop a7-choice-ollama || true
