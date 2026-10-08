@@ -19,7 +19,7 @@ import (
 
 const (
 	defaultMaxOutputTokens = 768
-	defaultMaxInputBytes    = 256 << 10
+	defaultMaxInputBytes   = 256 << 10
 )
 
 var (
