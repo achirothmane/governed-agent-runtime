@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/achirothmane/governed-agent-runtime/agentloop"
 	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
@@ -188,4 +187,3 @@ func scanDecision(scanner rowScanner) (temporalagent.DecisionRecord, error) {
 	return record, nil
 }
 
-var _ = time.Time{}
