@@ -93,6 +93,9 @@ func (a ReasonActivity) Execute(ctx context.Context, req ReasoningRequest) (Reas
 		if errors.Is(err, agentloop.ErrInvalidDecision) {
 			return ReasoningResult{}, nonRetryable("INVALID_REASONER_OUTPUT", err)
 		}
+		if errors.Is(err, agentloop.ErrInvalidReasoningContext) {
+			return ReasoningResult{}, nonRetryable("INVALID_REASONING_CONTEXT", err)
+		}
 		return ReasoningResult{}, fmt.Errorf("reasoning step %d: %w", req.Step, err)
 	}
 	if err := decision.Validate(); err != nil {
