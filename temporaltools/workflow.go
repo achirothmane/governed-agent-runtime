@@ -146,14 +146,24 @@ func (e Executor) Execute(
 	if output.InvocationID != ref.InvocationID {
 		return mcptransport.Result{}, ErrInvocationConflict
 	}
-	gotDigest, err := ResultDigest(output.Result)
+	stored, err = e.Store.Get(ctx, ref.InvocationID)
+	if err != nil {
+		return mcptransport.Result{}, fmt.Errorf("load completed durable tool invocation: %w", err)
+	}
+	if stored.State != InvocationComplete || stored.Result == nil || stored.ResultDigest == "" {
+		return mcptransport.Result{}, errors.New("durable tool workflow completed without a stored result")
+	}
+	if stored.ResultDigest != output.ResultDigest {
+		return mcptransport.Result{}, errors.New("durable tool result digest mismatch")
+	}
+	gotDigest, err := ResultDigest(*stored.Result)
 	if err != nil {
 		return mcptransport.Result{}, err
 	}
 	if gotDigest != output.ResultDigest {
-		return mcptransport.Result{}, errors.New("durable tool result digest mismatch")
+		return mcptransport.Result{}, errors.New("stored durable tool result digest mismatch")
 	}
-	return output.Result, nil
+	return *stored.Result, nil
 }
 
 func workflowID(ref InvocationRef) string {
