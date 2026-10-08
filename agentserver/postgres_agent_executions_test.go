@@ -43,7 +43,9 @@ func TestPostgresAgentExecutionAndDecisionSurviveStoreRecreation(t *testing.T) {
 	record := temporalagent.DecisionRecord{
 		RunID:          run.ID,
 		Step:           1,
-		Decision:       decision,
+		Kind:           agentloop.DecisionTool,
+		Tool:           "data.profile",
+		InvocationID:   "a6-01-test",
 		DecisionDigest: digest,
 	}
 	gotDecision, decisionCreated, err := store.PutDecision(ctx, record)
@@ -69,7 +71,7 @@ func TestPostgresAgentExecutionAndDecisionSurviveStoreRecreation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotDecision.DecisionDigest != digest || gotDecision.Decision.Tool != "data.profile" {
+	if gotDecision.DecisionDigest != digest || gotDecision.Tool != "data.profile" || gotDecision.InvocationID != "a6-01-test" {
 		t.Fatalf("decision after restart=%#v", gotDecision)
 	}
 }
@@ -113,7 +115,7 @@ func TestPostgresReasoningStepRejectsDifferentCommittedDecision(t *testing.T) {
 	first := agentloop.Decision{Kind: agentloop.DecisionFinish, Message: "first"}
 	firstDigest, _ := temporalagent.DecisionDigest(first)
 	if _, _, err := store.PutDecision(ctx, temporalagent.DecisionRecord{
-		RunID: run.ID, Step: 1, Decision: first, DecisionDigest: firstDigest,
+		RunID: run.ID, Step: 1, Kind: agentloop.DecisionFinish, Message: "first", DecisionDigest: firstDigest,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +123,7 @@ func TestPostgresReasoningStepRejectsDifferentCommittedDecision(t *testing.T) {
 	second := agentloop.Decision{Kind: agentloop.DecisionFinish, Message: "different"}
 	secondDigest, _ := temporalagent.DecisionDigest(second)
 	if _, _, err := store.PutDecision(ctx, temporalagent.DecisionRecord{
-		RunID: run.ID, Step: 1, Decision: second, DecisionDigest: secondDigest,
+		RunID: run.ID, Step: 1, Kind: agentloop.DecisionFinish, Message: "different", DecisionDigest: secondDigest,
 	}); !errors.Is(err, temporalagent.ErrDecisionConflict) {
 		t.Fatalf("error=%v want ErrDecisionConflict", err)
 	}
