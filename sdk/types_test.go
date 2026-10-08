@@ -44,7 +44,6 @@ func TestRunFingerprintIsStableAcrossRequiredToolDeclarationOrder(t *testing.T) 
 	}
 }
 
-
 func TestRunFingerprintBindsToolSchema(t *testing.T) {
 	base := RunRequest{
 		ID:           "run-schema",
