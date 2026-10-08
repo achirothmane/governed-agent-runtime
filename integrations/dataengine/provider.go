@@ -12,6 +12,7 @@ import (
 
 const (
 	ProfileTool        runtimesdk.ToolName = "data.profile"
+	ReconcileTool      runtimesdk.ToolName = "data.reconcile"
 	ExpectedServerName                     = "data-engine"
 )
 
@@ -36,6 +37,11 @@ func (p Provider) Agent(_ context.Context, id runtimesdk.AgentID) (runtimesdk.Ag
 	if err := agent.Validate(); err != nil {
 		return runtimesdk.AgentSpec{}, fmt.Errorf("data engine agent: %w", err)
 	}
+	for _, name := range agent.RequiredTools {
+		if !isAdmittedToolName(name) {
+			return runtimesdk.AgentSpec{}, fmt.Errorf("%w: required tool %s", ErrToolRejected, name)
+		}
+	}
 	return agent, nil
 }
 
@@ -51,14 +57,19 @@ func (p Provider) Runtime(ctx context.Context, id runtimesdk.AgentID) (runtimesd
 	if err != nil {
 		return runtimesdk.Runtime{}, err
 	}
-	descriptor, err := snapshot.Descriptor(ProfileTool)
-	if err != nil {
-		return runtimesdk.Runtime{}, err
+
+	descriptors := make([]runtimesdk.ToolDescriptor, 0, len(agent.RequiredTools))
+	for _, name := range agent.RequiredTools {
+		descriptor, err := snapshot.Descriptor(name)
+		if err != nil {
+			return runtimesdk.Runtime{}, fmt.Errorf("required data engine tool %s: %w", name, err)
+		}
+		// Server-owned admission based on our known Data Engine contract.
+		// Remote MCP readOnlyHint alone never grants this authority.
+		descriptor.ReadOnly = true
+		descriptors = append(descriptors, descriptor)
 	}
-	// This is server-owned admission based on our known Data Engine contract.
-	// The remote MCP readOnlyHint alone never grants this authority.
-	descriptor.ReadOnly = true
-	catalog, err := runtimesdk.NewToolCatalog([]runtimesdk.ToolDescriptor{descriptor})
+	catalog, err := runtimesdk.NewToolCatalog(descriptors)
 	if err != nil {
 		return runtimesdk.Runtime{}, err
 	}
@@ -87,7 +98,7 @@ func (p Provider) Invoke(ctx context.Context, tool runtimesdk.ToolDescriptor, ar
 	}
 	return transport.Invoke(ctx, mcptransport.Invocation{
 		SnapshotDigest: snapshot.Digest,
-		Tool:           ProfileTool,
+		Tool:           tool.Name,
 		Arguments:      arguments,
 	})
 }
@@ -108,26 +119,32 @@ func (p Provider) discover(ctx context.Context) (mcptransport.CapabilitySnapshot
 	if snapshot.Server.Name != ExpectedServerName {
 		return mcptransport.CapabilitySnapshot{}, fmt.Errorf("%w: got %q", ErrUnexpectedServer, snapshot.Server.Name)
 	}
-	if _, err := snapshot.Descriptor(ProfileTool); err != nil {
-		return mcptransport.CapabilitySnapshot{}, fmt.Errorf("required data engine profile tool: %w", err)
-	}
 	return snapshot, nil
 }
 
 func (p Provider) validateAdmittedTool(tool runtimesdk.ToolDescriptor) error {
 	switch {
-	case tool.Name != ProfileTool:
+	case !isAdmittedToolName(tool.Name):
 		return fmt.Errorf("%w: %s", ErrToolRejected, tool.Name)
 	case tool.Protocol != runtimesdk.ToolProtocolMCP:
-		return fmt.Errorf("%w: profile tool protocol is %q", ErrToolRejected, tool.Protocol)
+		return fmt.Errorf("%w: tool %s protocol is %q", ErrToolRejected, tool.Name, tool.Protocol)
 	case !tool.ReadOnly:
-		return fmt.Errorf("%w: profile tool is not server-admitted read-only", ErrToolRejected)
+		return fmt.Errorf("%w: tool %s is not server-admitted read-only", ErrToolRejected, tool.Name)
 	case strings.TrimSpace(tool.SnapshotDigest) == "":
-		return fmt.Errorf("%w: profile tool has no snapshot digest", ErrToolRejected)
+		return fmt.Errorf("%w: tool %s has no snapshot digest", ErrToolRejected, tool.Name)
 	case strings.TrimSpace(p.Endpoint) == "" || tool.Endpoint != p.Endpoint:
 		return fmt.Errorf("%w: endpoint mismatch", ErrToolRejected)
 	default:
 		return nil
+	}
+}
+
+func isAdmittedToolName(name runtimesdk.ToolName) bool {
+	switch name {
+	case ProfileTool, ReconcileTool:
+		return true
+	default:
+		return false
 	}
 }
 
