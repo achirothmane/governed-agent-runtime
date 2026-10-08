@@ -47,6 +47,7 @@ jobs:
 
       - name: Format check
         run: |
+          gofmt -d modeladapter
           test -z "$(gofmt -l .)"
 
       - name: Test
