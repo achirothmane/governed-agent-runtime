@@ -273,4 +273,24 @@ func TestCurrentPortfolioDecisionIsDurablyCommittedAndReplayed(t *testing.T) {
 			}
 		}
 	}
+
+	if evidencePath := strings.TrimSpace(os.Getenv("DOT_DECISION_EVIDENCE_FILE")); evidencePath != "" {
+		evidence := map[string]any{
+			"state":               "PASS",
+			"decision":            second,
+			"reasoner_calls":      reasoner.Count(),
+			"tool_invocations":    toolCount,
+			"workflow_id":         "portfolio-dot-decision/" + req.DecisionID,
+			"history_source_leak": false,
+			"store_restart_match": true,
+			"caller_rejoin_match": true,
+		}
+		raw, err := json.MarshalIndent(evidence, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(evidencePath, raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
