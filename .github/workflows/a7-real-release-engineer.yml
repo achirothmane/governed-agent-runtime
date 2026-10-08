@@ -2,26 +2,44 @@ name: A7 Real Release Engineer E2E
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/a7-real-release-engineer-e2e
-
-permissions:
-  contents: read
-  pull-requests: read
+    inputs:
+      mode:
+        description: "A7 proof to run"
+        required: true
+        default: "provider-recovery"
+        type: choice
+        options:
+          - provider-recovery
+          - lost-ack-create
+      precreated_head:
+        description: "Existing governed PR head branch for provider-recovery mode"
+        required: false
+        type: string
+      precreated_sha:
+        description: "Exact head SHA bound into the existing governed PR"
+        required: false
+        type: string
+      precreated_event_id:
+        description: "Event ID used to derive <event>:open-pr provider binding"
+        required: false
+        type: string
 
 jobs:
-  real-github-recovery:
+  provider-recovery:
+    if: ${{ inputs.mode == 'provider-recovery' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       A7_PRECREATED_RECOVERY: "1"
       A7_GITHUB_TOKEN: ${{ github.token }}
       A7_OWNER: ${{ github.repository_owner }}
       A7_REPO: ${{ github.event.repository.name }}
-      A7_PRECREATED_HEAD: "a7-live-fixture/20261008-0652"
-      A7_PRECREATED_SHA: "346db33206b46715456b47fbffc0adb8e98bb8b9"
-      A7_PRECREATED_EVENT_ID: "a7-live-precreated-20261008-0652"
+      A7_PRECREATED_HEAD: ${{ inputs.precreated_head }}
+      A7_PRECREATED_SHA: ${{ inputs.precreated_sha }}
+      A7_PRECREATED_EVENT_ID: ${{ inputs.precreated_event_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,3 +52,29 @@ jobs:
 
       - name: Recover precreated real GitHub effect
         run: go test -race ./integration/a7 -run '^TestRealGitHubRecoveryFromPrecreatedEffect$' -v
+
+  lost-ack-create:
+    if: ${{ inputs.mode == 'lost-ack-create' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      A7_REAL_GITHUB: "1"
+      A7_GITHUB_TOKEN: ${{ github.token }}
+      A7_OWNER: ${{ github.repository_owner }}
+      A7_REPO: ${{ github.event.repository.name }}
+      A7_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+
+      - name: Run real GitHub lost-ACK takeover proof
+        run: go test -race ./integration/a7 -run '^TestRealGitHubReleaseEngineerLostAckTakeover$' -v
