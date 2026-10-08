@@ -62,15 +62,15 @@ func New(config Config) (*Reasoner, error) {
 }
 
 type boundedReasoningView struct {
-	SnapshotDigest     string                            `json:"snapshot_digest"`
-	StructuralReview   string                            `json:"structural_review"`
-	NowProjects        []string                          `json:"now_projects"`
-	NowProjectState    []portfoliocontext.ProjectState   `json:"now_project_state"`
-	RunnableItems      []portfoliocontext.RunnableItem   `json:"runnable_items"`
-	VerifiedContracts  []portfoliocontext.ContractEdge   `json:"verified_contracts"`
-	HumanFinalOn       []string                          `json:"human_final_on"`
-	ExecutionPrinciple string                            `json:"execution_principle"`
-	WIP                portfoliocontext.WIP               `json:"wip"`
+	SnapshotDigest     string                          `json:"snapshot_digest"`
+	StructuralReview   string                          `json:"structural_review"`
+	NowProjects        []string                        `json:"now_projects"`
+	NowProjectState    []portfoliocontext.ProjectState `json:"now_project_state"`
+	RunnableItems      []portfoliocontext.RunnableItem `json:"runnable_items"`
+	VerifiedContracts  []portfoliocontext.ContractEdge `json:"verified_contracts"`
+	HumanFinalOn       []string                        `json:"human_final_on"`
+	ExecutionPrinciple string                          `json:"execution_principle"`
+	WIP                portfoliocontext.WIP            `json:"wip"`
 }
 
 func boundView(view portfoliocontext.ReasoningView) boundedReasoningView {
@@ -163,7 +163,7 @@ func (r *Reasoner) Decide(ctx context.Context, view portfoliocontext.ReasoningVi
 		Model: r.model,
 		Input: []inputMessage{
 			{
-				Role: "system",
+				Role:    "system",
 				Content: "You are the Portfolio Dot decision reasoner. Produce exactly one typed next-gate decision from the supplied sealed Portfolio ReasoningView. Do not claim execution occurred. Keep rationale concise and evidence-based. Human-final actions must use ASK_HUMAN. Return only the structured decision.",
 			},
 			{
