@@ -27,3 +27,16 @@ A provider may return a stale work item, authority escalation, or human-final ac
 Repository tests use a local deterministic HTTP server. No OpenAI credential or paid request is required in CI.
 
 A live provider smoke test is intentionally not enabled by this adapter. Any paid live call requires explicit human approval under the D5 execution-queue gate.
+
+
+## Stateless provider boundary
+
+The Responses request explicitly sets `store: false`; provider-side response storage is not part of Dots durability. D4 PostgreSQL remains the durable decision record. The adapter also caps `max_output_tokens` (1024 by default).
+
+## Opt-in live smoke
+
+`integration/dotsprovider/live_openai_test.go` is guarded by both the `liveprovider` build tag and `ALLOW_PAID_MODEL_TEST=1`.
+
+Normal CI never supplies these conditions, so repository verification makes no paid model request. A live smoke also requires `OPENAI_API_KEY`, `OPENAI_MODEL`, and a sealed `PORTFOLIO_CONTEXT_FILE`.
+
+The live test still has no tools and accepts a provider decision only if D3 validates it.
