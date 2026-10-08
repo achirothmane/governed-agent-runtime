@@ -66,6 +66,10 @@ func (s CapabilitySnapshot) Descriptor(name runtimesdk.ToolName) (runtimesdk.Too
 				Name:           tool.Name,
 				Protocol:       runtimesdk.ToolProtocolMCP,
 				Endpoint:       s.Endpoint,
+				Title:          tool.Title,
+				Description:    tool.Description,
+				InputSchema:    append(json.RawMessage(nil), tool.InputSchema...),
+				OutputSchema:   append(json.RawMessage(nil), tool.OutputSchema...),
 				ReadOnly:       false,
 				SnapshotDigest: s.Digest,
 			}, nil
@@ -82,6 +86,10 @@ func (s CapabilitySnapshot) Descriptors() []runtimesdk.ToolDescriptor {
 			Name:           tool.Name,
 			Protocol:       runtimesdk.ToolProtocolMCP,
 			Endpoint:       s.Endpoint,
+			Title:          tool.Title,
+			Description:    tool.Description,
+			InputSchema:    append(json.RawMessage(nil), tool.InputSchema...),
+			OutputSchema:   append(json.RawMessage(nil), tool.OutputSchema...),
 			ReadOnly:       false,
 			SnapshotDigest: s.Digest,
 		})
