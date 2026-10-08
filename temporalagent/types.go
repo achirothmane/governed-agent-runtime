@@ -56,27 +56,64 @@ func (r ObservationRef) Validate() error {
 }
 
 type DecisionRecord struct {
-	RunID          runtimesdk.RunID   `json:"run_id"`
-	Step           int                `json:"step"`
-	Decision       agentloop.Decision `json:"decision"`
-	DecisionDigest string             `json:"decision_digest"`
+	RunID          runtimesdk.RunID       `json:"run_id"`
+	Step           int                    `json:"step"`
+	Kind           agentloop.DecisionKind `json:"kind"`
+	Tool           runtimesdk.ToolName    `json:"tool,omitempty"`
+	Message        string                 `json:"message,omitempty"`
+	InvocationID   string                 `json:"invocation_id,omitempty"`
+	DecisionDigest string                 `json:"decision_digest"`
 }
 
 func (r DecisionRecord) Validate() error {
 	if strings.TrimSpace(string(r.RunID)) == "" || r.Step < 1 {
 		return errors.New("decision run id and positive step are required")
 	}
-	if err := r.Decision.Validate(); err != nil {
-		return err
+	if len(r.DecisionDigest) != 64 {
+		return errors.New("decision digest must be SHA-256 hex")
 	}
-	digest, err := DecisionDigest(r.Decision)
-	if err != nil {
-		return err
-	}
-	if r.DecisionDigest != digest {
-		return ErrDecisionConflict
+	switch r.Kind {
+	case agentloop.DecisionTool:
+		if strings.TrimSpace(string(r.Tool)) == "" || strings.TrimSpace(r.InvocationID) == "" {
+			return errors.New("tool decision record requires tool and invocation id")
+		}
+		if strings.TrimSpace(r.Message) != "" {
+			return errors.New("tool decision record must not include message")
+		}
+	case agentloop.DecisionFinish, agentloop.DecisionAsk, agentloop.DecisionFail:
+		if strings.TrimSpace(r.Message) == "" {
+			return errors.New("terminal decision record requires message")
+		}
+		if strings.TrimSpace(string(r.Tool)) != "" || strings.TrimSpace(r.InvocationID) != "" {
+			return errors.New("terminal decision record must not include tool binding")
+		}
+	default:
+		return fmt.Errorf("unsupported decision kind %q", r.Kind)
 	}
 	return nil
+}
+
+func newDecisionRecord(runID runtimesdk.RunID, step int, decision agentloop.Decision, invocationID string) (DecisionRecord, error) {
+	if err := decision.Validate(); err != nil {
+		return DecisionRecord{}, err
+	}
+	digest, err := DecisionDigest(decision)
+	if err != nil {
+		return DecisionRecord{}, err
+	}
+	record := DecisionRecord{
+		RunID:          runID,
+		Step:           step,
+		Kind:           decision.Kind,
+		Tool:           decision.Tool,
+		Message:        decision.Message,
+		InvocationID:   invocationID,
+		DecisionDigest: digest,
+	}
+	if err := record.Validate(); err != nil {
+		return DecisionRecord{}, err
+	}
+	return record, nil
 }
 
 type ExecutionStore interface {
