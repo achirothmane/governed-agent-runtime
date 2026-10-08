@@ -264,8 +264,11 @@ func TestReasonActivityRejectsMissionDriftBeforeReusingCommittedDecision(t *test
 	_, _, _ = executions.PrepareExecution(ctx, ref)
 	steps := newMemoryStepStore()
 	decision := agentloop.Decision{Kind: agentloop.DecisionFinish, Message: "done"}
-	digest, _ := DecisionDigest(decision)
-	_, _, _ = steps.PutDecision(ctx, DecisionRecord{RunID: run.ID, Step: 1, Decision: decision, DecisionDigest: digest})
+	record, err := newDecisionRecord(run.ID, 1, decision, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _ = steps.PutDecision(ctx, record)
 	activity := ReasonActivity{
 		Resolver:    &staticResolver{run: run, mission: "changed mission"},
 		Reasoner:    &countingReasoner{decision: decision},
@@ -347,14 +350,15 @@ func TestToolDispatchReturnsCompactObservationReference(t *testing.T) {
 	}
 }
 
-func TestDecisionRecordRejectsTamperedDigest(t *testing.T) {
+func TestDecisionRecordRejectsIncompleteToolBinding(t *testing.T) {
 	record := DecisionRecord{
 		RunID:          "run-1",
 		Step:           1,
-		Decision:       agentloop.Decision{Kind: agentloop.DecisionFinish, Message: "done"},
+		Kind:           agentloop.DecisionTool,
+		Tool:           "data.profile",
 		DecisionDigest: strings.Repeat("0", 64),
 	}
-	if !errors.Is(record.Validate(), ErrDecisionConflict) {
-		t.Fatalf("error=%v want ErrDecisionConflict", record.Validate())
+	if err := record.Validate(); err == nil {
+		t.Fatal("tool decision record without invocation id must be rejected")
 	}
 }
