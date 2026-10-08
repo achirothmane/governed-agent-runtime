@@ -50,11 +50,18 @@ type profileOutput struct {
 
 type reconcileInput struct {
 	Source struct {
-		Rows []map[string]string `json:"rows"`
+		Columns []string            `json:"columns"`
+		Rows    []map[string]string `json:"rows"`
 	} `json:"source"`
 	Target struct {
-		Rows []map[string]string `json:"rows"`
+		Columns []string            `json:"columns"`
+		Rows    []map[string]string `json:"rows"`
 	} `json:"target"`
+	Contract struct {
+		IdentityField string   `json:"identity_field"`
+		Fields        []string `json:"fields"`
+		Comparison    string   `json:"comparison"`
+	} `json:"contract"`
 }
 
 type reconcileOutput struct {
