@@ -17,11 +17,11 @@ const (
 )
 
 var (
-	ErrInvalidDecision  = errors.New("invalid Dot decision")
-	ErrSnapshotMismatch = errors.New("Dot decision snapshot mismatch")
-	ErrWorkItemUnknown  = errors.New("Dot decision references unknown work item")
+	ErrInvalidDecision   = errors.New("invalid Dot decision")
+	ErrSnapshotMismatch  = errors.New("Dot decision snapshot mismatch")
+	ErrWorkItemUnknown   = errors.New("Dot decision references unknown work item")
 	ErrAuthorityExceeded = errors.New("Dot decision exceeds admitted authority")
-	ErrHumanRequired    = errors.New("Dot decision requires human authority")
+	ErrHumanRequired     = errors.New("Dot decision requires human authority")
 )
 
 type Decision struct {
