@@ -70,3 +70,31 @@ CREATE TABLE IF NOT EXISTS agent_server_tool_invocations (
 
 CREATE INDEX IF NOT EXISTS agent_server_tool_invocations_run_idx
     ON agent_server_tool_invocations (run_id, created_at, invocation_id);
+
+
+CREATE TABLE IF NOT EXISTS agent_server_agent_executions (
+    run_id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    run_fingerprint TEXT NOT NULL,
+    mission_digest TEXT NOT NULL,
+    max_steps INTEGER NOT NULL CHECK (max_steps BETWEEN 1 AND 64),
+    created_at TIMESTAMPTZ NOT NULL,
+    FOREIGN KEY (run_id, conversation_id)
+        REFERENCES agent_server_runs (run_id, conversation_id)
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS agent_server_reasoning_steps (
+    run_id TEXT NOT NULL,
+    step INTEGER NOT NULL CHECK (step > 0),
+    decision_json JSONB NOT NULL,
+    decision_digest TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (run_id, step),
+    FOREIGN KEY (run_id)
+        REFERENCES agent_server_agent_executions (run_id)
+        ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS agent_server_reasoning_steps_run_idx
+    ON agent_server_reasoning_steps (run_id, step);
