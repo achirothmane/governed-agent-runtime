@@ -52,8 +52,8 @@ func responseJSON(t *testing.T, decision map[string]any) []byte {
 		"status": "completed",
 		"output": []any{
 			map[string]any{
-				"type": "message",
-				"role": "assistant",
+				"type":    "message",
+				"role":    "assistant",
 				"content": []any{
 					map[string]any{"type": "output_text", "text": string(rawDecision)},
 				},
@@ -224,24 +224,24 @@ func snapshotForProviderTest(t *testing.T) portfoliocontext.Snapshot {
 		},
 		"projection": map[string]any{
 			"structural_review": "2026-10-08",
-			"now_projects": []any{"portfolio-dot"},
+			"now_projects":      []any{"portfolio-dot"},
 			"now_project_state": []any{
 				map[string]any{"id": "portfolio-dot", "freshness": "FRESH", "completeness": "COMPLETE"},
 			},
 			"runnable_items": []any{
 				map[string]any{
-					"id": "dots-model-provider-adapter-005",
-					"project": "portfolio-dot",
-					"authority": "PREPARE",
-					"objective": "bind provider",
+					"id":                "dots-model-provider-adapter-005",
+					"project":           "portfolio-dot",
+					"authority":         "PREPARE",
+					"objective":         "bind provider",
 					"evidence_required": []any{"typed output"},
-					"stop_conditions": []any{"authority escape"},
+					"stop_conditions":   []any{"authority escape"},
 				},
 			},
-			"verified_contracts": []any{},
-			"human_final_on": []any{"merge", "release-or-publication", "paid-spend"},
+			"verified_contracts":  []any{},
+			"human_final_on":      []any{"merge", "release-or-publication", "paid-spend"},
 			"execution_principle": "priority-does-not-equal-execution-authority",
-			"wip": map[string]any{"now_cap": 3, "now_count": 1, "next_cap": 6, "next_count": 0},
+			"wip":                 map[string]any{"now_cap": 3, "now_count": 1, "next_cap": 6, "next_count": 0},
 		},
 	}
 	canonical, err := json.Marshal(doc)
@@ -265,12 +265,12 @@ func TestAuthorityEscalatingProviderDecisionNeverCommits(t *testing.T) {
 	snapshot := snapshotForProviderTest(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		decision := map[string]any{
-			"kind": "PROPOSE_NEXT_GATE",
-			"snapshot_digest": snapshot.SnapshotDigest,
-			"work_item_id": "dots-model-provider-adapter-005",
+			"kind":                "PROPOSE_NEXT_GATE",
+			"snapshot_digest":     snapshot.SnapshotDigest,
+			"work_item_id":        "dots-model-provider-adapter-005",
 			"requested_authority": "COMMIT_EXTERNAL",
-			"requested_action": "merge",
-			"rationale": "Escalate authority.",
+			"requested_action":    "merge",
+			"rationale":           "Escalate authority.",
 		}
 		_, _ = w.Write(responseJSON(t, decision))
 	}))
