@@ -117,27 +117,27 @@ func TestRealGitHubRecoveryFromPrecreatedEffect(t *testing.T) {
 		}
 	}
 	args, err := json.Marshal(map[string]any{
-		"owner": owner,
-		"repo": repo,
-		"head": head,
-		"base": "main",
+		"owner":             owner,
+		"repo":              repo,
+		"head":              head,
+		"base":              "main",
 		"expected_head_sha": headSHA,
-		"title": "A7 live recovery fixture 20261008-0652",
-		"body": "A7 live recovery fixture.",
-		"draft": true,
+		"title":             "A7 live recovery fixture 20261008-0652",
+		"body":              "A7 live recovery fixture.",
+		"draft":             true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	plan := cognition.Plan{
-		ID: "plan-" + eventID,
-		AgentID: agent.AgentID("release-engineer"),
-		EventID: eventID,
+		ID:          "plan-" + eventID,
+		AgentID:     agent.AgentID("release-engineer"),
+		EventID:     eventID,
 		ProviderRef: "a7://precreated-real-github",
 		Effects: []cognition.ProposedEffect{{
-			ID: "open-pr",
-			Tool: releaseengineer.ToolOpenPullRequest,
-			Action: releaseengineer.ActionOpenPullRequest,
+			ID:        "open-pr",
+			Tool:      releaseengineer.ToolOpenPullRequest,
+			Action:    releaseengineer.ActionOpenPullRequest,
 			Arguments: args,
 		}},
 	}
@@ -167,10 +167,10 @@ func TestRealGitHubRecoveryFromPrecreatedEffect(t *testing.T) {
 
 	realClient := githubpr.Client{Token: token}
 	handler := releaseengineer.Handler{
-		Store: store,
+		Store:     store,
 		Admission: admissionClient,
-		GitHub: realClient,
-		Clock: clock,
+		GitHub:    realClient,
+		Clock:     clock,
 	}
 	if err := handler.Handle(ctx, second); err != nil {
 		t.Fatalf("recover precreated real GitHub effect: %v", err)
