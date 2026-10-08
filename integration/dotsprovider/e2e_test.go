@@ -223,6 +223,16 @@ func TestCurrentPortfolioSnapshotFlowsThroughOpenAIAdapterAndDurableGate(t *test
 		!strings.Contains(requestText, "dots-model-provider-adapter-005") {
 		t.Fatalf("provider request is not bound to current snapshot/work item: %s", requestText)
 	}
+	var providerRequest map[string]any
+	if err := json.Unmarshal(capturedRequest, &providerRequest); err != nil {
+		t.Fatal(err)
+	}
+	if providerRequest["store"] != false {
+		t.Fatalf("provider store=%#v want=false", providerRequest["store"])
+	}
+	if providerRequest["max_output_tokens"] != float64(1024) {
+		t.Fatalf("provider max_output_tokens=%#v want=1024", providerRequest["max_output_tokens"])
+	}
 
 	var toolCount int
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM agent_server_tool_invocations").Scan(&toolCount); err != nil {
