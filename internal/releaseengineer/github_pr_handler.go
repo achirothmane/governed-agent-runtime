@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -309,8 +310,12 @@ func strictJSON(document []byte, target any) error {
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
-	if decoder.More() {
-		return errors.New("multiple JSON values are not allowed")
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values are not allowed")
+		}
+		return err
 	}
 	return nil
 }
