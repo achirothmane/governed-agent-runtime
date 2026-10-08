@@ -14,7 +14,6 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 
 	"github.com/achirothmane/governed-agent-runtime/agentloop"
-	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 )
 
 // ObservedTerminalReasoner is an explicit, single-read-only-observation policy.
@@ -191,6 +190,3 @@ func parseObservedTerminal(raw string) (agentloop.Decision, error) {
 	return decision, nil
 }
 
-// Ensure the observed-tool identity keeps its SDK domain rather than string
-// aliases supplied by an untrusted provider response.
-var _ runtimesdk.ToolName = runtimesdk.ToolName("data.profile")
