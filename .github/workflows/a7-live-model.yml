@@ -1,0 +1,60 @@
+name: A7 Live Local Model
+
+on:
+  pull_request:
+    paths:
+      - "integration/a7_live/**"
+      - "reasoners/openairesponses/**"
+      - "sdk/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/a7-live-model.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      A7_LIVE_MODEL_BASE_URL: http://127.0.0.1:11434/v1/
+      A7_LIVE_MODEL: qwen2.5:0.5b-instruct
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+
+      - name: Start local Ollama server on CPU
+        run: |
+          docker run --rm -d --name a7-ollama \
+            -p 127.0.0.1:11434:11434 \
+            -e OLLAMA_NUM_PARALLEL=1 \
+            -e OLLAMA_MAX_LOADED_MODELS=1 \
+            ollama/ollama:0.13.3
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail http://127.0.0.1:11434/api/tags
+
+      - name: Pull small public model (no API key)
+        run: docker exec a7-ollama ollama pull "$A7_LIVE_MODEL"
+
+      - name: Actual model structured decisions TOOL then FINISH
+        run: go test -tags=integration -v -count=1 -timeout=6m -run TestActualLocalModelProposesProfileThenFinishes ./integration/a7_live
+
+      - name: Local model diagnostics on failure
+        if: failure()
+        run: |
+          docker logs --tail=140 a7-ollama || true
+
+      - name: Stop local model
+        if: always()
+        run: docker stop a7-ollama || true
