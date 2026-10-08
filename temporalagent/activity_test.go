@@ -3,7 +3,6 @@ package temporalagent
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"sync"
 	"testing"
