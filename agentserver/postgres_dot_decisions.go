@@ -79,14 +79,14 @@ func (s *PostgresStore) GetCommittedDecision(ctx context.Context, decisionID str
 
 func scanDotDecision(scanner rowScanner) (dotdurable.Record, error) {
 	var (
-		decisionID string
-		snapshotDigest string
-		workItemID string
-		kind string
+		decisionID         string
+		snapshotDigest     string
+		workItemID         string
+		kind               string
 		requestedAuthority string
-		requestedAction sql.NullString
-		rationale string
-		decisionDigest string
+		requestedAction    sql.NullString
+		rationale          string
+		decisionDigest     string
 	)
 	if err := scanner.Scan(
 		&decisionID, &snapshotDigest, &workItemID, &kind,
@@ -95,13 +95,13 @@ func scanDotDecision(scanner rowScanner) (dotdurable.Record, error) {
 		return dotdurable.Record{}, err
 	}
 	record := dotdurable.Record{
-		DecisionID: decisionID,
-		SnapshotDigest: snapshotDigest,
-		WorkItemID: workItemID,
-		Kind: dotdecision.Kind(kind),
+		DecisionID:         decisionID,
+		SnapshotDigest:     snapshotDigest,
+		WorkItemID:         workItemID,
+		Kind:               dotdecision.Kind(kind),
 		RequestedAuthority: requestedAuthority,
-		Rationale: rationale,
-		DecisionDigest: decisionDigest,
+		Rationale:          rationale,
+		DecisionDigest:     decisionDigest,
 	}
 	if requestedAction.Valid {
 		record.RequestedAction = requestedAction.String
