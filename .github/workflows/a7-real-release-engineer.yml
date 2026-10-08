@@ -7,19 +7,21 @@ on:
       - feature/a7-real-release-engineer-e2e
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   real-github-recovery:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      A7_REAL_GITHUB: "1"
+      A7_PRECREATED_RECOVERY: "1"
       A7_GITHUB_TOKEN: ${{ github.token }}
       A7_OWNER: ${{ github.repository_owner }}
       A7_REPO: ${{ github.event.repository.name }}
-      A7_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      A7_PRECREATED_HEAD: "a7-live-fixture/20261008-0652"
+      A7_PRECREATED_SHA: "346db33206b46715456b47fbffc0adb8e98bb8b9"
+      A7_PRECREATED_EVENT_ID: "a7-live-precreated-20261008-0652"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,5 +32,5 @@ jobs:
           go-version: "1.25.x"
           cache: false
 
-      - name: Run real GitHub lost-ACK takeover proof
-        run: go test -race ./integration/a7 -run '^TestRealGitHubReleaseEngineerLostAckTakeover$' -v
+      - name: Recover precreated real GitHub effect
+        run: go test -race ./integration/a7 -run '^TestRealGitHubRecoveryFromPrecreatedEffect$' -v
