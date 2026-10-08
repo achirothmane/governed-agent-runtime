@@ -17,10 +17,9 @@ type Activity struct {
 }
 
 type ActivityResult struct {
-	InvocationID string              `json:"invocation_id"`
-	Result       mcptransport.Result `json:"result"`
-	ResultDigest string              `json:"result_digest"`
-	Reused       bool                `json:"reused"`
+	InvocationID string `json:"invocation_id"`
+	ResultDigest string `json:"result_digest"`
+	Reused       bool   `json:"reused"`
 }
 
 func (a Activity) Execute(ctx context.Context, ref InvocationRef) (ActivityResult, error) {
@@ -52,7 +51,6 @@ func (a Activity) Execute(ctx context.Context, ref InvocationRef) (ActivityResul
 		}
 		return ActivityResult{
 			InvocationID: ref.InvocationID,
-			Result:       *record.Result,
 			ResultDigest: record.ResultDigest,
 			Reused:       true,
 		}, nil
@@ -108,7 +106,6 @@ func (a Activity) Execute(ctx context.Context, ref InvocationRef) (ActivityResul
 	}
 	return ActivityResult{
 		InvocationID: ref.InvocationID,
-		Result:       *stored.Result,
 		ResultDigest: stored.ResultDigest,
 	}, nil
 }

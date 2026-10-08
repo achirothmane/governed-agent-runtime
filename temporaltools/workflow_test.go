@@ -60,6 +60,7 @@ type fakeWorkflowRun struct {
 	runID  string
 	output ActivityResult
 	err    error
+	onGet  func() error
 }
 
 func (r fakeWorkflowRun) GetID() string                  { return r.id }
@@ -68,6 +69,11 @@ func (r fakeWorkflowRun) GetFirstExecutionRunID() string { return r.runID }
 func (r fakeWorkflowRun) Get(_ context.Context, valuePtr any) error {
 	if r.err != nil {
 		return r.err
+	}
+	if r.onGet != nil {
+		if err := r.onGet(); err != nil {
+			return err
+		}
 	}
 	out, ok := valuePtr.(*ActivityResult)
 	if !ok {
@@ -125,8 +131,11 @@ func TestExecutorPersistsRawArgumentsOutsideTemporalInput(t *testing.T) {
 			runID: "temporal-tool-run",
 			output: ActivityResult{
 				InvocationID: ref.InvocationID,
-				Result:       result,
 				ResultDigest: resultDigest,
+			},
+			onGet: func() error {
+				_, err := store.Complete(ctx, ref.InvocationID, result, resultDigest)
+				return err
 			},
 		},
 	}
@@ -189,8 +198,11 @@ func TestExecutorReconcilesAlreadyStartedWorkflowByInvocationID(t *testing.T) {
 			runID: "temporal-tool-run",
 			output: ActivityResult{
 				InvocationID: ref.InvocationID,
-				Result:       result,
 				ResultDigest: resultDigest,
+			},
+			onGet: func() error {
+				_, err := store.Complete(ctx, ref.InvocationID, result, resultDigest)
+				return err
 			},
 		},
 	}

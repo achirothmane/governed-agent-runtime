@@ -195,11 +195,11 @@ func TestEngineStopsAtMaxSteps(t *testing.T) {
 
 func TestInvocationIDStableForSameBoundDecision(t *testing.T) {
 	decision := Decision{Kind: DecisionTool, Tool: "data.profile", Arguments: map[string]any{"b": 2, "a": 1}}
-	a, err := invocationID("run-1", 3, decision)
+	a, err := InvocationID("run-1", 3, decision)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := invocationID("run-1", 3, Decision{Kind: DecisionTool, Tool: "data.profile", Arguments: map[string]any{"a": 1, "b": 2}})
+	b, err := InvocationID("run-1", 3, Decision{Kind: DecisionTool, Tool: "data.profile", Arguments: map[string]any{"a": 1, "b": 2}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -39,11 +39,17 @@ PostgreSQL COMPLETE
     | normalized result + result digest
     v
 Temporal workflow result
+    |
+    | invocation_id + result_digest only
+    v
+Executor reloads verified result from PostgreSQL
 ```
 
 ## Payload boundary
 
 Raw profiling rows are stored in PostgreSQL. Temporal receives only an `InvocationRef`: invocation ID, run ID, conversation ID, bound tool descriptor, MCP snapshot digest, and SHA-256 arguments digest.
+
+As of A6.1, the activity/workflow result is compact as well: it contains only invocation ID, result digest, and reuse status. The full normalized MCP result is reloaded from PostgreSQL after the Temporal workflow completes and its digest is verified before it is returned to the caller.
 
 The durable workflow ID is deterministic: `ai-native-tool/<run_id>/<invocation_id>`. Reusing the same invocation ID reconciles to the same Temporal workflow instead of creating another execution.
 
@@ -63,7 +69,7 @@ A5.1 does not claim exactly-once execution for mutating tools. If the remote rea
 
 1. Agent Server events contain invocation identity and digests without raw rows.
 2. PostgreSQL contains restart-durable request/result payloads and invocation state.
-3. Temporal history contains scheduling, retry, cancellation, workflow identity, and binding digests.
+3. Temporal history contains scheduling, retry, cancellation, workflow identity, binding digests, and compact invocation/result references — not the full normalized tool result.
 
 None of these layers alone is promoted into a business-truth claim.
 
@@ -77,6 +83,7 @@ Register `temporaltools.Workflow` and `temporaltools.Activity` with `temporaltoo
 - tampered stored arguments fail before invocation;
 - failed reads remain retryable;
 - raw argument values are absent from Temporal workflow input;
+- normalized tool result payloads are absent from Temporal activity/workflow results;
 - duplicate Temporal starts reconcile to the same workflow ID;
 - PostgreSQL invocation records survive store reconstruction;
 - invocation IDs cannot be rebound to another snapshot/request;
@@ -86,7 +93,7 @@ Register `temporaltools.Workflow` and `temporaltools.Activity` with `temporaltoo
 
 ## Boundary decision
 
-**KNOWN:** read-only MCP tools can be coordinated durably by Temporal while payloads remain in restart-durable PostgreSQL and outside Temporal workflow arguments.
+**KNOWN:** read-only MCP tools can be coordinated durably by Temporal while raw arguments and normalized results remain in restart-durable PostgreSQL and outside Temporal workflow arguments/results.
 
 **KNOWN:** a locally persisted COMPLETE result prevents a later activity retry from reinvoking the tool.
 

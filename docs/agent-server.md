@@ -153,4 +153,8 @@ Alternatively, provide `Reasoner + DurableInvoker`; Agent Server composes the de
 
 The server re-binds the current runtime before calling the Reasoner. Capability drift produces HTTP 409 and the Reasoner is not called.
 
-A6 persists only terminal run evidence. Tool execution evidence remains activity-owned in the A5.1 durable path. The A6 reasoning loop itself is request-scoped; disconnect/restart durability for reasoning is an explicit A6.1 boundary.
+A6 persists only terminal run evidence. Tool execution evidence remains activity-owned in the A5.1 durable path.
+
+A6.1 adds an alternative durable `AgentRunner`: `temporalagent.Executor`. Agent Server keeps the same `POST /v1/runs/{runID}/execute` surface, but the reasoning loop runs as `ai-native.agent.v1` in Temporal. A disconnected request can retry the same run and reconcile to the existing workflow.
+
+The durable worker reconstructs the exact run through `BoundRunResolver`, validates run fingerprint plus mission digest at each reasoning step, and stores compact committed decisions in PostgreSQL. Raw tool arguments/results stay in the A5.1 invocation ledger rather than entering Temporal agent history.

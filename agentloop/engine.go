@@ -88,7 +88,7 @@ func (e Engine) Run(ctx context.Context, run runtimesdk.RunRequest, mission stri
 			if !tool.ReadOnly {
 				return Outcome{}, fmt.Errorf("%w: %s", ErrMutatingTool, decision.Tool)
 			}
-			invocationID, err := invocationID(run.ID, step, decision)
+			invocationID, err := InvocationID(run.ID, step, decision)
 			if err != nil {
 				return Outcome{}, fmt.Errorf("agent tool step %d: %w", step, err)
 			}
@@ -131,7 +131,7 @@ func findTool(tools []runtimesdk.ToolDescriptor, name runtimesdk.ToolName) (runt
 	return runtimesdk.ToolDescriptor{}, false
 }
 
-func invocationID(runID runtimesdk.RunID, step int, decision Decision) (string, error) {
+func InvocationID(runID runtimesdk.RunID, step int, decision Decision) (string, error) {
 	payload, err := json.Marshal(struct {
 		Run       runtimesdk.RunID    `json:"run"`
 		Step      int                 `json:"step"`
