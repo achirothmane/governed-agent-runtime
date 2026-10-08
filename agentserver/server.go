@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/achirothmane/governed-agent-runtime/agentloop"
 	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 )
 
@@ -28,7 +29,9 @@ type Config struct {
 	Provider          RuntimeProvider
 	Invoker           ToolInvoker
 	DurableInvoker    DurableToolInvoker
+	Reasoner          agentloop.Reasoner
 	AgentRunner       AgentRunner
+	AgentMaxSteps     int
 	Store             Store
 	BearerToken       string
 	Clock             func() time.Time
@@ -84,12 +87,20 @@ func New(config Config) (*Service, error) {
 	if invoker == nil {
 		invoker, _ = config.Provider.(ToolInvoker)
 	}
+	runner := config.AgentRunner
+	if runner == nil && config.Reasoner != nil && config.DurableInvoker != nil {
+		runner = agentloop.Engine{
+			Reasoner: config.Reasoner,
+			Tools:    config.DurableInvoker,
+			MaxSteps: config.AgentMaxSteps,
+		}
+	}
 
 	s := &Service{
 		provider:          config.Provider,
 		invoker:           invoker,
 		durableInvoker:    config.DurableInvoker,
-		agentRunner:       config.AgentRunner,
+		agentRunner:       runner,
 		store:             config.Store,
 		bearerToken:       config.BearerToken,
 		clock:             config.Clock,
