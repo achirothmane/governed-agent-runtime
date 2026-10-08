@@ -164,6 +164,24 @@ func (p *fakeProvider) callCount() int {
 }
 
 func TestOpenAIAdapterDrivesDurableDataEngineLoop(t *testing.T) {
+	runA7Integration(t, false)
+}
+
+// This separate test uses real model inference rather than the deterministic
+// mock, plus actual Temporal, PostgreSQL and Data Engine MCP.
+func TestActualLocalModelDrivesDurableDataEngineLoop(t *testing.T) {
+	base := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL_BASE_URL"))
+	model := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL"))
+	if base == "" || model == "" {
+		t.Skip("real local model inference is opt-in")
+	}
+	if !strings.HasPrefix(base, "http://127.0.0.1:") && !strings.HasPrefix(base, "http://localhost:") {
+		t.Fatal("live local model test requires loopback Ollama")
+	}
+	runA7Integration(t, true)
+}
+
+func runA7Integration(t *testing.T, live bool) {
 	dataEngineURL := strings.TrimSpace(os.Getenv("DATA_ENGINE_MCP_URL"))
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if dataEngineURL == "" || databaseURL == "" {
@@ -206,17 +224,26 @@ func TestOpenAIAdapterDrivesDurableDataEngineLoop(t *testing.T) {
 	}()
 
 	fake := &fakeProvider{}
-	modelServer := httptest.NewServer(http.HandlerFunc(fake.handler))
-	defer modelServer.Close()
-
+	modelName := "test-model"
+	modelEndpoint := ""
+	apiKey := "test-key"
+	if live {
+		modelName = strings.TrimSpace(os.Getenv("A7_LIVE_MODEL"))
+		modelEndpoint = strings.TrimSpace(os.Getenv("A7_LIVE_MODEL_BASE_URL"))
+		apiKey = "local-ollama-only"
+	} else {
+		modelServer := httptest.NewServer(http.HandlerFunc(fake.handler))
+		defer modelServer.Close()
+		modelEndpoint = modelServer.URL
+	}
 	openAIClient := openai.NewClient(
 		option.WithUnsafeAllowHTTP(),
-		option.WithBaseURL(modelServer.URL),
-		option.WithAPIKey("test-key"),
+		option.WithBaseURL(modelEndpoint),
+		option.WithAPIKey(apiKey),
 		option.WithMaxRetries(0),
 	)
 	reasoner, err := openairesponses.NewWithClient(
-		openairesponses.Config{Model: "test-model"},
+		openairesponses.Config{Model: modelName},
 		sdkResponsesClient{client: openAIClient},
 	)
 	if err != nil {
@@ -288,8 +315,11 @@ func TestOpenAIAdapterDrivesDurableDataEngineLoop(t *testing.T) {
 	const (
 		conversationID = runtimesdk.ConversationID("conv-a7")
 		runID          = runtimesdk.RunID("run-a7")
-		input          = "Profile the supplied evidence and report whether identical raw identities conflict."
 	)
+	input := "Profile the supplied evidence and report whether identical raw identities conflict."
+	if live {
+		input = "Call data.profile using identity_field=id on these exact rows: [{\"id\":\"a\",\"price\":20},{\"id\":\"a\",\"price\":21}]. Only after the tool observation, explain whether they conflict. Do not finish before calling the bound read-only tool."
+	}
 	conversation := agentserver.Conversation{
 		Ref: runtimesdk.ConversationRef{
 			ID:          conversationID,
@@ -373,12 +403,21 @@ func TestOpenAIAdapterDrivesDurableDataEngineLoop(t *testing.T) {
 	}
 	if decoded.Outcome.Kind != agentloop.OutcomeFinished ||
 		decoded.Outcome.Steps != 2 ||
-		len(decoded.Outcome.Observations) != 1 ||
-		decoded.Outcome.Message != "The raw evidence conflicts for the same identity." {
+		len(decoded.Outcome.Observations) != 1 {
 		t.Fatalf("outcome=%#v", decoded.Outcome)
 	}
-	if fake.callCount() != 2 {
-		t.Fatalf("model calls=%d want 2", fake.callCount())
+	if live {
+		if !strings.Contains(strings.ToLower(decoded.Outcome.Message), "conflict") {
+			t.Fatalf("live model did not explain the proven conflict: %q", decoded.Outcome.Message)
+		}
+		t.Logf("real local model %s finished with one durable Data Engine observation", modelName)
+	} else {
+		if decoded.Outcome.Message != "The raw evidence conflicts for the same identity." {
+			t.Fatalf("mock model terminal message=%q", decoded.Outcome.Message)
+		}
+		if fake.callCount() != 2 {
+			t.Fatalf("mock provider calls=%d want 2", fake.callCount())
+		}
 	}
 
 	first, err := store.GetDecision(ctx, runID, 1)
