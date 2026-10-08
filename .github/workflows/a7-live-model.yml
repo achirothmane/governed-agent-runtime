@@ -1,13 +1,10 @@
 name: A7 Live Local Model
 
 on:
-  pull_request:
+  push:
+    branches:
+      - feat/openai-reasoner-a7
     paths:
-      - "integration/a7_live/**"
-      - "reasoners/openairesponses/**"
-      - "sdk/**"
-      - "go.mod"
-      - "go.sum"
       - ".github/workflows/a7-live-model.yml"
   workflow_dispatch:
 
