@@ -25,9 +25,9 @@ const (
 )
 
 var (
-	ErrUnsupportedPlan = errors.New("release engineer plan is not a supported GitHub PR effect")
+	ErrUnsupportedPlan  = errors.New("release engineer plan is not a supported GitHub PR effect")
 	ErrEffectUnresolved = errors.New("release engineer GitHub effect remains unresolved")
-	ErrEffectDenied = errors.New("release engineer GitHub effect was denied")
+	ErrEffectDenied     = errors.New("release engineer GitHub effect was denied")
 )
 
 type GitHubBoundary interface {
