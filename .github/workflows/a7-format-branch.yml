@@ -1,0 +1,31 @@
+name: A7 Branch Gofmt Once
+
+on:
+  push:
+    branches:
+      - feat/a7-converged-live-model
+    paths:
+      - .github/workflows/a7-format-branch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.repository == 'achirothmane/governed-agent-runtime'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Gofmt exactly the A7.1 changed Go files
+        run: |
+          gofmt -w reasoners/openairesponses/native.go reasoners/openairesponses/native_test.go integration/a7_live/live_model_test.go
+          git diff --check
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add reasoners/openairesponses/native.go reasoners/openairesponses/native_test.go integration/a7_live/live_model_test.go
+            git commit -m "A7.1: gofmt native reasoner and live tests"
+            git push origin HEAD:feat/a7-converged-live-model
+          fi
