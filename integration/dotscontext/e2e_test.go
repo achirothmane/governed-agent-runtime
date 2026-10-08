@@ -32,7 +32,7 @@ func TestPortfolioContextArtifactCanBeConsumedWithoutRepositoryReads(t *testing.
 		t.Fatalf("runnable items=%#v", view.RunnableItems)
 	}
 	item := view.RunnableItems[0]
-	if item.ID != "dots-durable-decision-loop-004" ||
+	if item.ID != "dots-model-provider-adapter-005" ||
 		item.Project != "portfolio-dot" ||
 		item.Authority != "PREPARE" {
 		t.Fatalf("runnable item=%#v", item)
