@@ -257,7 +257,7 @@ func TestReasonerCapsContextBeforeNetwork(t *testing.T) {
 
 func TestDecisionFromCallRejectsUnknownFunction(t *testing.T) {
 	_, err := decisionFromCall(
-		responses.ResponseFunctionToolCallItem{
+		responses.ResponseFunctionToolCall{
 			Name:      "invented_tool",
 			Arguments: "{}",
 		},
