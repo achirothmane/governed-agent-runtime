@@ -151,28 +151,20 @@ The deterministic Reasoner proves the loop contract and tool boundary. It is not
 
 **UNSUPPORTED:** mutating tool choices.
 
-## Next boundary — A6.1
+## A6.1 status
 
-A6.1 should move reasoning steps themselves into Temporal activities and persist only compact decision/observation references outside workflow history.
-
-That will change:
-
-```text
-request-scoped reasoning
-        ↓
-durable tool calls
-```
-
-into:
+A6.1 now implements the durable form of this loop in [Durable Agent A6.1](durable-agent-a6-1.md):
 
 ```text
 durable reasoning step
         ↓
 durable tool call
         ↓
-durable observation
+compact observation reference
         ↓
 durable next decision
 ```
 
-A model-provider adapter (OpenAI, local model, or another provider) can then implement the same `Reasoner` contract without changing the agent loop semantics.
+The original A6 `agentloop.Engine` remains useful as the simple request-scoped/reference loop. Production compositions that need disconnect/restart recovery can use `temporalagent.Executor`.
+
+The next useful boundary is a real model-provider adapter implementing the same `Reasoner` contract; that adapter must not change tool authority, durable decision binding, or the no-chain-of-thought persistence contract.
