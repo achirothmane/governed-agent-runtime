@@ -33,3 +33,19 @@ Every accepted call in this tiny corpus had exactly one `cap_0` proposal with th
 - `NOT AN AUTHORITY BOUNDARY`: Neither provider-side `required` nor `none` demonstrated reliable enforcement in earlier counterfactual tests. The runtime must still validate tool binding and JSON Schema locally and reject unexpected outputs.
 
 Next finite experiment: keep the **full baseline condition** constant and compare `tool_choice` omitted vs explicit `auto` three times each, with reversed trial order. Do not change `NativeReasoner` behavior until the outcome is measured.
+
+
+## Follow-up single-field test: explicit auto vs omission
+
+The first baseline included explicit `tool_choice=auto`, whereas the production-shaped Go `NativeReasoner` omits `tool_choice`. A second, separate finite six-call test kept the **entire full-context baseline request identical** and changed only the presence of that field.
+
+| Tool choice sent | Correct bound `cap_0` proposals / trials |
+|---|---|
+| Omitted (matching SDK default) | **3/3** |
+| Explicit `"auto"` | **1/3** |
+
+GitHub Actions [run 37747438210](https://github.com/achirothmane/data-engine/actions/runs/37747438210), machine-readable artifact `a7-tool-choice-auto-presence-evidence`; source `scripts/a7_auto_presence_probe.py`.
+
+Both conditions returned HTTP success every time. The rejected calls were ordinary model messages, not transport failures. This small sample is **not proof** that explicit `auto` causes harm: the earlier 2×2 ablation returned **2/2** accepted with explicit `auto` and full context, while the earlier direct `NativeReasoner` live test had returned zero calls with omission. The discrepancies establish significant model/provider sampling instability or uncontrolled differences across executions; the causal role of `tool_choice` remains **UNKNOWN**.
+
+**Decision:** no production change to tool-choice semantics, schema duplication, or terminal-function set. Keep the original read-only local allowlist, JSON Schema validation, and fail-closed rejection. A next test must make generation settings (temperature and provider-supported seed) explicit and measure repeated request reliability, not infer readiness from individual lucky calls. All CPU-heavy experiments are disabled from automatic PR triggers after the finite runs.
