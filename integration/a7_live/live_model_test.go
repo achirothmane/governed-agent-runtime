@@ -83,12 +83,18 @@ func runLocalModelTest(t *testing.T, native bool) {
 		t.Fatal("A7 smoke only accepts loopback local inference")
 	}
 
-	client := openai.NewClient(
+	options := []option.RequestOption{
 		option.WithAPIKey("local-ollama-no-remote-secret"),
 		option.WithUnsafeAllowHTTP(),
 		option.WithBaseURL(baseURL),
 		option.WithMaxRetries(0),
-	)
+	}
+	if native {
+		// Experimental local-model sampling control only. Production policy
+		// remains unchanged pending actual-model end-to-end acceptance.
+		options = append(options, option.WithJSONSet("temperature", float64(0)))
+	}
+	client := openai.NewClient(options...)
 	var reasoner agentloop.Reasoner
 	var err error
 	if native {
