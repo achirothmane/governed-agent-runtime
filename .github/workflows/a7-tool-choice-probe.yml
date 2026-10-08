@@ -1,10 +1,6 @@
 name: A7.1 Tool Choice Compatibility Probe
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/a7-tool-choice-probe.yml"
-      - "scripts/a7_tool_choice_probe.py"
   workflow_dispatch:
 
 permissions:
