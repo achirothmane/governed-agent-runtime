@@ -52,8 +52,8 @@ func responseJSON(t *testing.T, decision map[string]any) []byte {
 		"status": "completed",
 		"output": []any{
 			map[string]any{
-				"type":    "message",
-				"role":    "assistant",
+				"type": "message",
+				"role": "assistant",
 				"content": []any{
 					map[string]any{"type": "output_text", "text": string(rawDecision)},
 				},
