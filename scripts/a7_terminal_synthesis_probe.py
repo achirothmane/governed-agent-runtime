@@ -66,25 +66,32 @@ def check(response):
     if not isinstance(response, dict):
         return {"accepted": False, "reason": "invalid_provider_response"}
     outputs = response.get("output", [])
-    if len(outputs) != 1 or outputs[0].get("type") != "message":
-        return {"accepted": False, "reason": "not_exactly_one_terminal_message"}
-    content = outputs[0].get("content", [])
+    output_types = [x.get("type") for x in outputs]
+    # The Responses API may include a separate reasoning item. Like the
+    # production native adapter, disregard it without persisting its content.
+    visible = [x for x in outputs if x.get("type") != "reasoning"]
+    if len(visible) != 1 or visible[0].get("type") != "message":
+        return {"accepted": False, "reason": "not_exactly_one_terminal_message",
+                "output_types": output_types}
+    content = visible[0].get("content", [])
     if len(content) != 1 or content[0].get("type") != "output_text":
-        return {"accepted": False, "reason": "not_exactly_one_output_text"}
+        return {"accepted": False, "reason": "not_exactly_one_output_text",
+                "output_types": output_types}
     try:
         d = json.loads(content[0].get("text", ""))
     except (TypeError, ValueError):
-        return {"accepted": False, "reason": "invalid_terminal_json"}
+        return {"accepted": False, "reason": "invalid_terminal_json", "output_types": output_types}
     if not isinstance(d, dict) or set(d) != {"kind", "message"}:
-        return {"accepted": False, "reason": "invalid_terminal_shape"}
+        return {"accepted": False, "reason": "invalid_terminal_shape", "output_types": output_types}
     if d.get("kind") not in ("FINISH", "ASK", "FAIL") or not isinstance(d.get("message"), str):
-        return {"accepted": False, "reason": "invalid_terminal_fields"}
+        return {"accepted": False, "reason": "invalid_terminal_fields", "output_types": output_types}
     semantic_correct = d["kind"] == "FINISH" and "conflict" in d["message"].lower()
     return {
         "accepted": semantic_correct,
         "terminal_kind": d["kind"],
         "semantic_correct": semantic_correct,
         "reason": "ok" if semantic_correct else "wrong_terminal_decision",
+        "output_types": output_types,
     }
 
 def main():
@@ -103,7 +110,8 @@ def main():
         outcome.update({"attempt": iteration, "transport_error": error, "seconds": seconds})
         results.append(outcome)
         print(f"attempt={iteration} terminal_accepted={outcome['accepted']} "
-              f"kind={outcome.get('terminal_kind')} error={error} latency={seconds}s", flush=True)
+              f"kind={outcome.get('terminal_kind')} output_types={outcome.get('output_types')} "
+              f"reason={outcome.get('reason')} error={error} latency={seconds}s", flush=True)
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump({"model": args.model, "results": results}, f, indent=2)
     print("A7_TERMINAL_SYNTHESIS_ACCEPTED=" + str(sum(x["accepted"] for x in results)) + "/2")
