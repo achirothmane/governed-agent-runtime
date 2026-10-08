@@ -87,7 +87,10 @@ CREATE TABLE IF NOT EXISTS agent_server_agent_executions (
 CREATE TABLE IF NOT EXISTS agent_server_reasoning_steps (
     run_id TEXT NOT NULL,
     step INTEGER NOT NULL CHECK (step > 0),
-    decision_json JSONB NOT NULL,
+    decision_kind TEXT NOT NULL CHECK (decision_kind IN ('TOOL', 'FINISH', 'ASK', 'FAIL')),
+    tool_name TEXT,
+    message TEXT,
+    invocation_id TEXT,
     decision_digest TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (run_id, step),
