@@ -38,19 +38,19 @@ func testTurn() agentloop.Turn {
 			},
 		},
 		AgentMission: "Analyze imported data; disclose uncertainty.",
-		Step: 1,
+		Step:         1,
 	}
 }
 
 func testConfig(url string) Config {
 	return Config{
 		BaseURL: url + "/v1",
-		Model: "test-model",
+		Model:   "test-model",
 		ToolGuides: map[runtimesdk.ToolName]ToolGuide{
 			"data.profile": {
-				Description: "Profile rows with no mutations.",
+				Description:    "Profile rows with no mutations.",
 				SnapshotDigest: "snapshot-one",
-				InputSchema: json.RawMessage(`{"type":"object","properties":{"dataset":{"type":"string"}},"required":["dataset"]}`),
+				InputSchema:    json.RawMessage(`{"type":"object","properties":{"dataset":{"type":"string"}},"required":["dataset"]}`),
 			},
 		},
 	}
