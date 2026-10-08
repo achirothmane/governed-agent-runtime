@@ -25,17 +25,19 @@ var (
 )
 
 type Config struct {
-	Endpoint   string
-	Model      string
-	APIKey     string
-	HTTPClient *http.Client
+	Endpoint        string
+	Model           string
+	APIKey          string
+	MaxOutputTokens int
+	HTTPClient      *http.Client
 }
 
 type Reasoner struct {
-	endpoint string
-	model    string
-	apiKey   string
-	client   *http.Client
+	endpoint        string
+	model           string
+	apiKey          string
+	maxOutputTokens int
+	client          *http.Client
 }
 
 func New(config Config) (*Reasoner, error) {
@@ -49,15 +51,23 @@ func New(config Config) (*Reasoner, error) {
 	if strings.TrimSpace(config.APIKey) == "" {
 		return nil, fmt.Errorf("%w: API key is required", ErrInvalidConfig)
 	}
+	maxOutputTokens := config.MaxOutputTokens
+	if maxOutputTokens == 0 {
+		maxOutputTokens = 1024
+	}
+	if maxOutputTokens < 16 {
+		return nil, fmt.Errorf("%w: max output tokens must be at least 16", ErrInvalidConfig)
+	}
 	client := config.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: 60 * time.Second}
 	}
 	return &Reasoner{
-		endpoint: endpoint,
-		model:    strings.TrimSpace(config.Model),
-		apiKey:   strings.TrimSpace(config.APIKey),
-		client:   client,
+		endpoint:        endpoint,
+		model:           strings.TrimSpace(config.Model),
+		apiKey:          strings.TrimSpace(config.APIKey),
+		maxOutputTokens: maxOutputTokens,
+		client:          client,
 	}, nil
 }
 
@@ -88,9 +98,11 @@ func boundView(view portfoliocontext.ReasoningView) boundedReasoningView {
 }
 
 type responsesRequest struct {
-	Model string         `json:"model"`
-	Input []inputMessage `json:"input"`
-	Text  textConfig     `json:"text"`
+	Model           string         `json:"model"`
+	Input           []inputMessage `json:"input"`
+	Text            textConfig     `json:"text"`
+	Store           bool           `json:"store"`
+	MaxOutputTokens int            `json:"max_output_tokens"`
 }
 
 type inputMessage struct {
@@ -160,7 +172,9 @@ func (r *Reasoner) Decide(ctx context.Context, view portfoliocontext.ReasoningVi
 	}
 
 	requestBody := responsesRequest{
-		Model: r.model,
+		Model:           r.model,
+		Store:           false,
+		MaxOutputTokens: r.maxOutputTokens,
 		Input: []inputMessage{
 			{
 				Role:    "system",
