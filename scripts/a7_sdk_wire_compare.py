@@ -12,6 +12,11 @@ import sys
 from a7_context_ablation import body
 
 def diffs(expected, actual, where="$"):
+    # JSON has one number domain: 0 and 0.0 represent the same value.
+    # Preserve the bool distinction because Python bool subclasses int.
+    if (type(expected) in (int, float) and type(actual) in (int, float)
+            and expected == actual):
+        return []
     if type(expected) != type(actual):
         return [{"path": where, "kind": "type", "expected_type": type(expected).__name__,
                  "actual_type": type(actual).__name__}]
