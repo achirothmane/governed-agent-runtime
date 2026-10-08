@@ -95,21 +95,25 @@ func (a ReasonActivity) Execute(ctx context.Context, req ReasoningRequest) (Reas
 	if err := decision.Validate(); err != nil {
 		return ReasoningResult{}, nonRetryable("INVALID_REASONING_DECISION", err)
 	}
+	invocationID := ""
 	if decision.Kind == agentloop.DecisionTool {
-		if _, _, err := toolRef(run, req.Step, decision); err != nil {
+		ref, args, err := toolRef(run, req.Step, decision)
+		if err != nil {
 			return ReasoningResult{}, nonRetryable("INVALID_TOOL_DECISION", err)
 		}
+		storedInvocation, _, err := a.Invocations.Prepare(ctx, ref, args)
+		if err != nil {
+			return ReasoningResult{}, fmt.Errorf("prepare durable tool invocation: %w", err)
+		}
+		if !temporaltools.SameBinding(storedInvocation.Ref, ref) {
+			return ReasoningResult{}, nonRetryable("TOOL_INVOCATION_CONFLICT", temporaltools.ErrInvocationConflict)
+		}
+		invocationID = ref.InvocationID
 	}
 
-	digest, err := DecisionDigest(decision)
+	record, err = newDecisionRecord(run.ID, req.Step, decision, invocationID)
 	if err != nil {
 		return ReasoningResult{}, nonRetryable("INVALID_REASONING_DECISION", err)
-	}
-	record = DecisionRecord{
-		RunID:          run.ID,
-		Step:           req.Step,
-		Decision:       decision,
-		DecisionDigest: digest,
 	}
 	stored, _, err := a.Steps.PutDecision(ctx, record)
 	if err != nil {
@@ -131,25 +135,38 @@ func (a ReasonActivity) materializeDecision(
 	}
 	result := ReasoningResult{
 		Step:           record.Step,
-		Kind:           record.Decision.Kind,
-		Message:        record.Decision.Message,
+		Kind:           record.Kind,
+		Message:        record.Message,
 		DecisionDigest: record.DecisionDigest,
 	}
-	if record.Decision.Kind != agentloop.DecisionTool {
+	if record.Kind != agentloop.DecisionTool {
+		decision := agentloop.Decision{Kind: record.Kind, Message: record.Message}
+		digest, err := DecisionDigest(decision)
+		if err != nil || digest != record.DecisionDigest {
+			return ReasoningResult{}, nonRetryable("REASONING_DECISION_CONFLICT", ErrDecisionConflict)
+		}
 		return result, nil
 	}
-	ref, args, err := toolRef(run, record.Step, record.Decision)
+
+	invocation, err := a.Invocations.Get(ctx, record.InvocationID)
 	if err != nil {
-		return ReasoningResult{}, nonRetryable("INVALID_TOOL_DECISION", err)
+		return ReasoningResult{}, fmt.Errorf("load committed tool invocation: %w", err)
 	}
-	stored, _, err := a.Invocations.Prepare(ctx, ref, args)
-	if err != nil {
-		return ReasoningResult{}, fmt.Errorf("prepare durable tool invocation: %w", err)
-	}
-	if !temporaltools.SameBinding(stored.Ref, ref) {
+	if invocation.Ref.RunID != run.ID ||
+		invocation.Ref.ConversationID != run.Conversation.ID ||
+		invocation.Ref.Tool.Name != record.Tool {
 		return ReasoningResult{}, nonRetryable("TOOL_INVOCATION_CONFLICT", temporaltools.ErrInvocationConflict)
 	}
-	result.Invocation = &ref
+	decision := agentloop.Decision{
+		Kind:      agentloop.DecisionTool,
+		Tool:      record.Tool,
+		Arguments: invocation.Arguments,
+	}
+	digest, err := DecisionDigest(decision)
+	if err != nil || digest != record.DecisionDigest {
+		return ReasoningResult{}, nonRetryable("REASONING_DECISION_CONFLICT", ErrDecisionConflict)
+	}
+	result.Invocation = &invocation.Ref
 	return result, nil
 }
 
