@@ -163,8 +163,20 @@ tool contract:
   takeover worker/lease epoch before retry;
 - `UNKNOWN/DIVERGENT` remain fail-closed.
 
+A7 adds real-GitHub evidence without overstating the result:
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md), [Durable Agent A6.1](docs/durable-agent-a6-1.md), and [Release Engineer GitHub Effect](docs/release-engineer-github-effect.md).
+- real-provider takeover recovery from `UNKNOWN` to verified
+  `APPLIED_ONCE`: **PASS**;
+- live proof used read-only GitHub permissions and required neither a second
+  admission nor a replay;
+- real GitHub create + injected lost-ack + takeover: implemented but currently
+  **BLOCKED_BY_PLATFORM_POLICY** because this repository's Actions token
+  receives HTTP 403 on Create Pull Request despite write scopes;
+- the manual A7 workflow preserves both gates so the stronger proof can be
+  rerun when repository policy permits Actions-originated PR creation.
+
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md), [Durable Agent A6.1](docs/durable-agent-a6-1.md), [Release Engineer GitHub Effect](docs/release-engineer-github-effect.md), and [A7 Real Release Engineer E2E](docs/a7-real-release-engineer.md).
 
 ## Effect boundary
 
