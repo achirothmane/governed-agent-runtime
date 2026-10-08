@@ -139,8 +139,19 @@ Runtime A6 adds the first provider-neutral agent decision loop:
 - no chain-of-thought requirement or persistence;
 - terminal `run.completed / run.waiting / run.failed` evidence without copying raw observations.
 
+Runtime A6.1 makes the reasoning loop durable:
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md).
+- `ai-native.agent.v1` survives caller disconnect and reconciles retries to one workflow per run;
+- PostgreSQL pins run fingerprint, mission digest, conversation, and max-step budget;
+- committed reasoning steps are replayed without recalling the Reasoner;
+- reasoning records are compact: kind/tool/message/invocation ID/digest only;
+- raw TOOL arguments live only in the A5.1 invocation ledger;
+- agent workflow history carries decision and observation references rather than raw input/tool results;
+- A5.1 tool workflow results are also compact and reload the verified result from PostgreSQL after Temporal completion;
+- every reasoning activity revalidates the current bound runtime before continuing.
+
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md), and [Durable Agent A6.1](docs/durable-agent-a6-1.md).
 
 ## Effect boundary
 
