@@ -150,8 +150,21 @@ Runtime A6.1 makes the reasoning loop durable:
 - A5.1 tool workflow results are also compact and reload the verified result from PostgreSQL after Temporal completion;
 - every reasoning activity revalidates the current bound runtime before continuing.
 
+The Release Engineer effect path now connects the earlier governance/effect
+substrate to one real mutating capability without weakening the A6 read-only
+tool contract:
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md), and [Durable Agent A6.1](docs/durable-agent-a6-1.md).
+- exact durable plan → fresh lease-bound signed admission → GitHub PR effect;
+- provider observation before and after dispatch;
+- takeover from `EXECUTING` enters `UNKNOWN`;
+- durable `EffectResolution` is required to leave `UNKNOWN`;
+- `APPLIED_ONCE` recovers to verification without a second create;
+- proof-grade `ABSENT` reopens admission and requires fresh authority for the
+  takeover worker/lease epoch before retry;
+- `UNKNOWN/DIVERGENT` remain fail-closed.
+
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md), [Durable Agent A6.1](docs/durable-agent-a6-1.md), and [Release Engineer GitHub Effect](docs/release-engineer-github-effect.md).
 
 ## Effect boundary
 

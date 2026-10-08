@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS agent_runtime_work (
     plan_digest BYTEA,
     plan_document BYTEA,
     plan_bound_at_ns BIGINT,
+    effect_resolution_document BYTEA,
     lease_owner TEXT,
     lease_epoch BIGINT NOT NULL DEFAULT 0 CHECK (lease_epoch >= 0),
     lease_expires_at_ns BIGINT,
@@ -64,6 +65,7 @@ ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_event_id TEXT;
 ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_digest BYTEA;
 ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_document BYTEA;
 ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS plan_bound_at_ns BIGINT;
+ALTER TABLE agent_runtime_work ADD COLUMN IF NOT EXISTS effect_resolution_document BYTEA;
 
 CREATE INDEX IF NOT EXISTS agent_runtime_work_claim_idx
     ON agent_runtime_work (work_state, lease_expires_at_ns, sequence);

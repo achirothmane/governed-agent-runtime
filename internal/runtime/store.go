@@ -92,6 +92,7 @@ func (b PlanBinding) Validate() error {
 
 type WorkRecord struct {
 	Admission          *governance.SignedAdmission `json:"admission,omitempty"`
+	Resolution         *EffectResolution           `json:"effect_resolution,omitempty"`
 	Sequence           uint64                      `json:"sequence"`
 	Event              Event                       `json:"event"`
 	State              WorkState                   `json:"state"`
@@ -132,6 +133,7 @@ var (
 
 type Store interface {
 	BeginExecution(context.Context, LeaseToken, governance.SignedAdmission, time.Time) (WorkRecord, error)
+	ResolveUnknown(context.Context, LeaseToken, EffectResolution, time.Time) (WorkRecord, error)
 	Enqueue(context.Context, Event) (WorkRecord, error)
 	Claim(context.Context, string, time.Time, time.Duration) (ClaimedWork, error)
 	Renew(context.Context, LeaseToken, time.Time, time.Duration) (LeaseToken, error)
