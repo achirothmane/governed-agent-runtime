@@ -71,3 +71,18 @@ Combining the **two completed, independent runs** (four observations per conditi
 Interpretation: in this fixed Qwen3/Ollama corpus, the full current choice set performed best, and removing terminal functions **while leaving duplicate schema** consistently failed. The two factors appear to interact; this is **not** evidence that either factor should be removed globally. Four observations per cell are insufficient for production reliability claims, even when an observed rate is 4/4. This direct HTTP experiment included explicit `tool_choice=auto`; a separate 3+3 trial showed unexplained reversals across runs and cannot establish deterministic model behavior. None of these calls invoked the real Data Engine MCP or Temporal workflows.
 
 Decision remains: preserve the current fail-closed runtime contracts, do not change prompt/schema/terminal policy yet, and only attempt further live-model E2E after controlling SDK-wire framing and sampling reproducibility.
+
+
+## Exact official Go SDK wire: independently verified
+
+The original SDK-vs-HTTP ambiguity has been isolated with an actual **same-request loopback capture proxy** and Qwen3 inference through the official OpenAI Go SDK v3.73.0. This does not marshal a Python approximation of the Go request; the Go client actually POSTs to a local proxy, which captures only the synthetic request JSON, then forwards the same bytes to Ollama 0.13.3.
+
+The comparison parses the nested JSON `input` and recursively compares all request fields, tool schemas and function descriptions to an independent direct-HTTP reference, with the **same full agent mission and synthetic rows** and `tool_choice` omitted. The only test-only additional request field was `temperature=0`.
+
+- [Run 37749073091](https://github.com/achirothmane/data-engine/actions/runs/37749073091): actual SDK model first-step **TOOL PASS** in 64.624 seconds. Original comparator flagged `0.0` (Python float) versus `0` (JSON numeric integer), a **false-positive type difference**, not a semantic difference.
+- Numeric comparison corrected so `0 == 0.0` while bool remains distinct.
+- [Run 37749643693](https://github.com/achirothmane/data-engine/actions/runs/37749643693): actual SDK model first-step **TOOL PASS** in 29.425 seconds, independent **SDK wire vs reference = PASS**, `SDK_HTTP_FIELD_DIFFERENCES=[]`.
+
+Code: `integration/a7_live/sdk_wire_test.go`, `scripts/a7_sdk_wire_compare.py`. Synthetic request evidence is stored only as a workflow artifact; the test never persists model text, secrets, auth headers, runtime invocation IDs or MCP responses. These tests do **not** invoke Data Engine MCP, so the separate live durable contract remains a different acceptance gate.
+
+**Revised diagnosis:** there is no demonstrated SDK request-serialization incompatibility on the tested synthetic fixture. Temperature-zero may have helped, but two successful independent invocations are insufficient to prove a reliable general causal improvement over default sampling, and temperature zero is **not a provider-reproducibility guarantee**. The Ollama 0.13.3 Responses compatibility documentation does not list `seed` as supported for this endpoint. No production NativeReasoner default or authorization logic was changed.
