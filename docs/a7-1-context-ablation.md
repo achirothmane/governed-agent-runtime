@@ -49,3 +49,25 @@ GitHub Actions [run 37747438210](https://github.com/achirothmane/data-engine/act
 Both conditions returned HTTP success every time. The rejected calls were ordinary model messages, not transport failures. This small sample is **not proof** that explicit `auto` causes harm: the earlier 2×2 ablation returned **2/2** accepted with explicit `auto` and full context, while the earlier direct `NativeReasoner` live test had returned zero calls with omission. The discrepancies establish significant model/provider sampling instability or uncontrolled differences across executions; the causal role of `tool_choice` remains **UNKNOWN**.
 
 **Decision:** no production change to tool-choice semantics, schema duplication, or terminal-function set. Keep the original read-only local allowlist, JSON Schema validation, and fail-closed rejection. A next test must make generation settings (temperature and provider-supported seed) explicit and measure repeated request reliability, not infer readiness from individual lucky calls. All CPU-heavy experiments are disabled from automatic PR triggers after the finite runs.
+
+
+## Replication — an independent second 2×2 run
+
+An automatic PR trigger had already started a second identical ablation before CPU-heavy workflows were switched to manual-only. The additional run [37747438124](https://github.com/achirothmane/data-engine/actions/runs/37747438124) completed with no transport errors. It returned, in the same condition order reversed in its own second round:
+- Duplicate schema + terminal definitions: **2/2**
+- No duplicated schema + terminal definitions: **1/2**
+- Duplicated schema + no terminal definitions: **0/2**
+- Neither: **2/2**
+
+Combining the **two completed, independent runs** (four observations per condition) yields:
+
+| Duplicate schema | Terminal definitions | Accepted `cap_0` first-step proposals |
+|---|---|---|
+| Yes | Yes (current full design) | **4/4** |
+| No | Yes | **2/4** |
+| Yes | No | **0/4** |
+| No | No | **3/4** |
+
+Interpretation: in this fixed Qwen3/Ollama corpus, the full current choice set performed best, and removing terminal functions **while leaving duplicate schema** consistently failed. The two factors appear to interact; this is **not** evidence that either factor should be removed globally. Four observations per cell are insufficient for production reliability claims, even when an observed rate is 4/4. This direct HTTP experiment included explicit `tool_choice=auto`; a separate 3+3 trial showed unexplained reversals across runs and cannot establish deterministic model behavior. None of these calls invoked the real Data Engine MCP or Temporal workflows.
+
+Decision remains: preserve the current fail-closed runtime contracts, do not change prompt/schema/terminal policy yet, and only attempt further live-model E2E after controlling SDK-wire framing and sampling reproducibility.
