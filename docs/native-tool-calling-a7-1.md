@@ -33,3 +33,17 @@ Only user input, agent mission, read-only names/descriptions/input schemas, norm
 - `go test -tags=integration -run TestActualLocalNativeModelDrivesDurableDataEngineLoop ./integration/a7`: optional **actual local model** + PostgreSQL + Temporal + real Data Engine MCP. Requires `DATA_ENGINE_MCP_URL`, `DATABASE_URL`, `A7_LIVE_MODEL_BASE_URL`, `A7_LIVE_MODEL`. Database fixture is destructive and must use an isolated test database.
 
 Decision: A7.1 remains a candidate until real-model behavior is measured. No cross-test aggregation is accepted as proof of complete live-model end-to-end operation.
+
+## Actual local-model results — 2026-10-08
+
+The live experiment used Ollama v0.13.3 and the official OpenAI Go SDK against a real local Responses endpoint on GitHub Actions. No paid API or user credential was used.
+
+| Model | Legacy structured envelope | Native function-call candidate |
+|---|---|---|
+| Qwen2.5 0.5B | FAIL: invalid mixed terminal/tool envelope | Not run |
+| Qwen2.5 1.5B | FAIL: chose ASK instead of the bound profile tool | **FAIL:** ordinary message, zero function calls (10.195 s) |
+| Qwen2.5 3B | FAIL: malformed nested arguments_json | **FAIL:** ordinary message, zero function calls (34.098 s) |
+
+Both native outputs were **rejected by the adapter before durable commit or tool dispatch**. A real model returning ordinary text is not proof that native function calling works. Unit/wire tests pass, but model decision quality for these CPU candidates is not proven.
+
+**No A7.1 live-model PASS.** Do not broaden privileges, silently parse an ordinary message as executable authority, or bypass schema validation to improve a score. The next experiment should compare a proven tool-capable model and supported provider tool-choice semantics on the exact same corpus with explicit token, time and failure budgets. Do not automatically rerun large CPU inference on every PR update.
