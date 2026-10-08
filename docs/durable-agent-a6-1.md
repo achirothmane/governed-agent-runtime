@@ -210,14 +210,18 @@ The Temporal workflow result is durable. Agent Server currently projects `run.co
 
 A6.1 inherits the A5.1/A6 read-only restriction. Mutating tools remain unsupported by this retry model.
 
-## Next boundary
+## A7 status
 
-With reasoning and tool execution both durable, the next useful slice is not another runtime abstraction. It is a **real model-provider adapter** implementing the existing `agentloop.Reasoner` contract, while preserving:
+A7 now implements the first real model-provider adapter with the official OpenAI Go SDK and Responses API. See [OpenAI Responses Reasoner A7](openai-reasoner-a7.md).
+
+The A6.1 durability contract remains unchanged:
 
 ```text
 structured decisions only
 no chain-of-thought persistence
-bound tools only
-conditional context exposure
+bound read-only tools only
 durable decision commit
+provider retry owned by Temporal
 ```
+
+A7 does not turn OpenAI into an execution substrate. The provider returns only a structured next-step decision; all tool authority and durable execution remain inside the runtime.
