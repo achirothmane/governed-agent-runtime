@@ -88,7 +88,7 @@ func TestActualLocalModelProposesProfileThenFinishes(t *testing.T) {
 		t.Fatalf("real-model step 1 failed: %v", err)
 	}
 	if first.Kind != agentloop.DecisionTool || first.Tool != "data.profile" {
-		t.Fatalf("model did not select bound read-only profile tool: kind=%s tool=%q", first.Kind, first.Tool)
+		t.Fatalf("model did not select bound read-only profile tool: kind=%s tool=%q message=%q", first.Kind, first.Tool, first.Message)
 	}
 	if first.Arguments["identity_field"] != "id" {
 		t.Fatalf("model selected wrong identity field: %v", first.Arguments["identity_field"])
