@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/achirothmane/governed-agent-runtime/agentloop"
 	"github.com/achirothmane/governed-agent-runtime/mcptransport"
 	runtimesdk "github.com/achirothmane/governed-agent-runtime/sdk"
 )
@@ -46,6 +47,10 @@ type DurableToolInvoker interface {
 		runtimesdk.ToolDescriptor,
 		map[string]any,
 	) (mcptransport.Result, error)
+}
+
+type AgentRunner interface {
+	Run(context.Context, runtimesdk.RunRequest, string) (agentloop.Outcome, error)
 }
 
 // StaticProvider is useful for composition, tests, and small deployments. Dynamic
