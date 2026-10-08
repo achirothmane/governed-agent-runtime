@@ -1,0 +1,60 @@
+name: A7.1 Context Ablation Qwen3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/a7-context-ablation.yml"
+      - "scripts/a7_context_ablation.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  two-factor-ablation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      A7_PROBE_MODEL: qwen3:1.7b
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start pinned local Ollama
+        run: |
+          docker run --rm -d --name a7-ablation-ollama \
+            -p 127.0.0.1:11434:11434 \
+            -e OLLAMA_NUM_PARALLEL=1 \
+            -e OLLAMA_MAX_LOADED_MODELS=1 \
+            ollama/ollama:0.13.3
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Pull public tool-capable model
+        run: docker exec a7-ablation-ollama ollama pull "$A7_PROBE_MODEL"
+
+      - name: Run eight controlled native-calling experiments
+        run: |
+          python3 -m py_compile scripts/a7_context_ablation.py
+          python3 scripts/a7_context_ablation.py \
+            --base-url http://127.0.0.1:11434/v1 \
+            --model "$A7_PROBE_MODEL" \
+            --output a7-context-ablation.json
+
+      - name: Preserve structured experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a7-context-ablation-evidence
+          path: a7-context-ablation.json
+          if-no-files-found: ignore
+
+      - name: Log diagnostics on infrastructure failure
+        if: failure()
+        run: docker logs --tail=75 a7-ablation-ollama || true
+
+      - name: Stop local model
+        if: always()
+        run: docker stop a7-ablation-ollama || true
