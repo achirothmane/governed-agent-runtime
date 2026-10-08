@@ -105,21 +105,7 @@ func runLocalModelTest(t *testing.T, native bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"rows":{"type":"array","items":{"type":"object"}},"identity_field":{"type":"string"}},"required":["rows","identity_field"]}`)
-	run := runtimesdk.RunRequest{
-		ID: "local-model-smoke",
-		Conversation: runtimesdk.ConversationRef{
-			ID: "local-conversation", AgentID: "profile-agent", WorkspaceID: "data",
-		},
-		Workspace: runtimesdk.WorkspaceSpec{ID: "data", Kind: runtimesdk.WorkspaceRemote},
-		Input:     `Call data.profile with identity_field="id" and rows=[{"id":"a","price":20},{"id":"a","price":21}]. After the profile returns, tell me whether the raw values conflict. Do not FINISH before calling the tool.`,
-		Tools: []runtimesdk.ToolDescriptor{{
-			Name: "data.profile", Protocol: runtimesdk.ToolProtocolMCP,
-			Endpoint: "http://127.0.0.1:8090/mcp",
-			Title:    "Profile raw data", Description: "Analyze raw rows and detect conflicting values for identical identities; read-only.",
-			InputSchema: schema, ReadOnly: true, SnapshotDigest: strings.Repeat("a", 64),
-		}},
-	}
+	run := smokeRun()
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 	start := time.Now()
@@ -161,4 +147,24 @@ func runLocalModelTest(t *testing.T, native bool) {
 	if second.Kind != agentloop.DecisionFinish || !strings.Contains(strings.ToLower(second.Message), "conflict") {
 		t.Fatalf("model did not accurately finish from an observation: kind=%s message=%q", second.Kind, second.Message)
 	}
+}
+
+// smokeRun is the exact fixture used in native SDK-vs-raw HTTP wire experiments.
+func smokeRun() runtimesdk.RunRequest {
+	schema := json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"rows":{"type":"array","items":{"type":"object"}},"identity_field":{"type":"string"}},"required":["rows","identity_field"]}`)
+	run := runtimesdk.RunRequest{
+		ID: "local-model-smoke",
+		Conversation: runtimesdk.ConversationRef{
+			ID: "local-conversation", AgentID: "profile-agent", WorkspaceID: "data",
+		},
+		Workspace: runtimesdk.WorkspaceSpec{ID: "data", Kind: runtimesdk.WorkspaceRemote},
+		Input:     `Call data.profile with identity_field="id" and rows=[{"id":"a","price":20},{"id":"a","price":21}]. After the profile returns, tell me whether the raw values conflict. Do not FINISH before calling the tool.`,
+		Tools: []runtimesdk.ToolDescriptor{{
+			Name: "data.profile", Protocol: runtimesdk.ToolProtocolMCP,
+			Endpoint: "http://127.0.0.1:8090/mcp",
+			Title:    "Profile raw data", Description: "Analyze raw rows and detect conflicting values for identical identities; read-only.",
+			InputSchema: schema, ReadOnly: true, SnapshotDigest: strings.Repeat("a", 64),
+		}},
+	}
+	return run
 }
