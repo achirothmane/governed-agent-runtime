@@ -1,10 +1,11 @@
 name: A7.1 Context Ablation Qwen3
 
 on:
-  pull_request:
+  push:
+    branches:
+      - feat/a7-converged-live-model
     paths:
       - ".github/workflows/a7-context-ablation.yml"
-      - "scripts/a7_context_ablation.py"
   workflow_dispatch:
 
 permissions:
