@@ -1,6 +1,9 @@
 package sdk
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestRunFingerprintIsStableAcrossRequiredToolDeclarationOrder(t *testing.T) {
 	catalog, err := NewToolCatalog([]ToolDescriptor{
