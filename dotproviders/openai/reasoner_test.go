@@ -131,6 +131,12 @@ func TestReasonerUsesResponsesStructuredOutputAndBoundedViewOnly(t *testing.T) {
 	if format["type"] != "json_schema" || format["strict"] != true || format["name"] != "portfolio_dot_decision" {
 		t.Fatalf("format=%#v", format)
 	}
+	if decoded["store"] != false {
+		t.Fatalf("store=%#v want=false", decoded["store"])
+	}
+	if decoded["max_output_tokens"] != float64(1024) {
+		t.Fatalf("max_output_tokens=%#v want=1024", decoded["max_output_tokens"])
+	}
 }
 
 func TestReasonerRejectsMalformedOrRefusedOutput(t *testing.T) {
@@ -303,5 +309,8 @@ func TestNewRequiresModelAndAPIKey(t *testing.T) {
 	}
 	if _, err := New(Config{APIKey: "x"}); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("missing model error=%v", err)
+	}
+	if _, err := New(Config{Model: "x", APIKey: "x", MaxOutputTokens: 15}); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("too-small max output tokens error=%v", err)
 	}
 }
