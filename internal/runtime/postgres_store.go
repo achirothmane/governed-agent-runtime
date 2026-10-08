@@ -426,6 +426,7 @@ const postgresColumns = `
 	plan_digest,
 	plan_document,
 	plan_bound_at_ns,
+	effect_resolution_document,
 	lease_owner,
 	lease_epoch,
 	lease_expires_at_ns,
@@ -451,6 +452,7 @@ const postgresReturningColumns = `
 	w.plan_digest,
 	w.plan_document,
 	w.plan_bound_at_ns,
+	w.effect_resolution_document,
 	w.lease_owner,
 	w.lease_epoch,
 	w.lease_expires_at_ns,
@@ -474,6 +476,7 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		planDigest           []byte
 		planDocument         []byte
 		planBoundAtNS        sql.NullInt64
+		effectResolutionDocument []byte
 		leaseOwner           sql.NullString
 		leaseEpoch           int64
 		leaseExpiresAtNS     sql.NullInt64
@@ -499,6 +502,7 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		&planDigest,
 		&planDocument,
 		&planBoundAtNS,
+		&effectResolutionDocument,
 		&leaseOwner,
 		&leaseEpoch,
 		&leaseExpiresAtNS,
@@ -554,6 +558,21 @@ func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, 
 		boundAt := time.Unix(0, planBoundAtNS.Int64).UTC()
 		record.Plan = &binding
 		record.PlanBoundAt = &boundAt
+	}
+
+	if len(effectResolutionDocument) > 0 {
+		var resolution EffectResolution
+		if err := json.Unmarshal(effectResolutionDocument, &resolution); err != nil {
+			return WorkRecord{}, nil, fmt.Errorf("postgres runtime store contains invalid effect resolution: %w", err)
+		}
+		if err := resolution.Validate(); err != nil {
+			return WorkRecord{}, nil, fmt.Errorf("postgres runtime store contains invalid effect resolution: %w", err)
+		}
+		if record.Plan == nil || resolution.PlanDigest != fmt.Sprintf("%x", record.Plan.Digest) {
+			return WorkRecord{}, nil, errors.New("postgres runtime store contains effect resolution for different plan")
+		}
+		cloned := resolution
+		record.Resolution = &cloned
 	}
 
 	if leaseOwner.Valid {
