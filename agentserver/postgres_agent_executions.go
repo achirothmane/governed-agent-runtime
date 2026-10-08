@@ -1,10 +1,8 @@
 package agentserver
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -82,21 +80,20 @@ func (s *PostgresStore) PutDecision(ctx context.Context, record temporalagent.De
 	if err := record.Validate(); err != nil {
 		return temporalagent.DecisionRecord{}, false, err
 	}
-	payload, err := json.Marshal(record.Decision)
-	if err != nil {
-		return temporalagent.DecisionRecord{}, false, err
-	}
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO agent_server_reasoning_steps (
-			run_id, step, decision_json, decision_digest, created_at
+			run_id, step, decision_kind, tool_name, message, invocation_id, decision_digest, created_at
 		)
-		VALUES ($1,$2,$3,$4,NOW())
+		VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
 		ON CONFLICT (run_id, step) DO NOTHING
-		RETURNING run_id, step, decision_json, decision_digest
+		RETURNING run_id, step, decision_kind, tool_name, message, invocation_id, decision_digest
 	`,
 		string(record.RunID),
 		record.Step,
-		payload,
+		string(record.Kind),
+		nullString(string(record.Tool)),
+		nullString(record.Message),
+		nullString(record.InvocationID),
 		record.DecisionDigest,
 	)
 	stored, err := scanDecision(row)
@@ -121,7 +118,7 @@ func (s *PostgresStore) GetDecision(ctx context.Context, runID runtimesdk.RunID,
 		return temporalagent.DecisionRecord{}, errors.New("postgres store is not configured")
 	}
 	row := s.db.QueryRowContext(ctx, `
-		SELECT run_id, step, decision_json, decision_digest
+		SELECT run_id, step, decision_kind, tool_name, message, invocation_id, decision_digest
 		FROM agent_server_reasoning_steps
 		WHERE run_id = $1 AND step = $2
 	`, string(runID), step)
@@ -161,25 +158,31 @@ func scanAgentExecution(scanner rowScanner) (temporalagent.ExecutionRef, error) 
 
 func scanDecision(scanner rowScanner) (temporalagent.DecisionRecord, error) {
 	var (
-		runID   string
-		step    int
-		payload []byte
-		digest  string
+		runID        string
+		step         int
+		kind         string
+		tool         sql.NullString
+		message      sql.NullString
+		invocationID sql.NullString
+		digest       string
 	)
-	if err := scanner.Scan(&runID, &step, &payload, &digest); err != nil {
+	if err := scanner.Scan(&runID, &step, &kind, &tool, &message, &invocationID, &digest); err != nil {
 		return temporalagent.DecisionRecord{}, err
-	}
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.UseNumber()
-	var decision agentloop.Decision
-	if err := decoder.Decode(&decision); err != nil {
-		return temporalagent.DecisionRecord{}, fmt.Errorf("decode reasoning decision: %w", err)
 	}
 	record := temporalagent.DecisionRecord{
 		RunID:          runtimesdk.RunID(runID),
 		Step:           step,
-		Decision:       decision,
+		Kind:           agentloop.DecisionKind(kind),
 		DecisionDigest: digest,
+	}
+	if tool.Valid {
+		record.Tool = runtimesdk.ToolName(tool.String)
+	}
+	if message.Valid {
+		record.Message = message.String
+	}
+	if invocationID.Valid {
+		record.InvocationID = invocationID.String
 	}
 	if err := record.Validate(); err != nil {
 		return temporalagent.DecisionRecord{}, fmt.Errorf("postgres contains invalid reasoning decision: %w", err)
