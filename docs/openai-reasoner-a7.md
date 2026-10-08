@@ -191,3 +191,22 @@ That release remains compatible with the repository's Go 1.25 toolchain boundary
 **UNKNOWN / not claimed:** exactly-once provider billing across worker loss before decision commit.
 
 **UNSUPPORTED:** model-selected mutating tools under the current A5.1/A6 retry contract.
+
+
+## 2026-10-08 — actual-model falsification (NOT A7 PASS)
+
+A separate opt-in `integration/a7_live` test used the official OpenAI Go Responses SDK, a real local Ollama server (v0.13.3), and CPU inference on GitHub Actions. No paid API or credential was used. The observation in this **smoke** test was synthetic; the private A7 protocol gate independently tested actual Temporal, PostgreSQL and Data Engine MCP with a deterministic Responses endpoint.
+
+| Model | Real response | Gate |
+|---|---|---|
+| `qwen2.5:0.5b-instruct` | Invalid terminal decision retained a nonempty tool field (about 5.5 seconds) | FAIL |
+| `qwen2.5:1.5b-instruct` | Chose ASK despite a bound `data.profile` and supplied rows (about 7.7 seconds) | FAIL |
+| `qwen2.5:3b-instruct` | `arguments_json` contained invalid trailing JSON data (about 31.7 seconds) | FAIL |
+
+All three errors were detected and **refused** by the existing decision validator. The runtime did not silently dispatch unproven tool effects. Small-model task reliability is not established.
+
+**Boundary decision:** provider wire compatibility KNOWN; actual local-model inference KNOWN; correct bound TOOL→observation→FINISH using these three candidates **NOT ACCEPTED**. Never equate deterministic Responses-compatible protocol PASS with live-model correctness.
+
+**A7.1 design hypothesis:** nested JSON encoded as a string (`arguments_json`) is a fragility. Evaluate provider-native function calls or a tool-specific structured arguments object with runtime JSON-Schema validation **before** invocation preparation. Preserve `TOOL | FINISH | ASK | FAIL`, read-only allowlisting, durable commit, and explicit refusal. Compare the exact same corpus and models against the existing adapter; a change is not accepted unless it measurably improves complete, valid decisions without increasing unsafe tool dispatch or cost. A stronger model may help but must be tested, not assumed.
+
+GitHub workflow `A7 Live Local Model` is deliberately manual-only after this falsification to avoid repeated large model downloads on every PR update.
