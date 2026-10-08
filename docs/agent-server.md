@@ -44,6 +44,7 @@ All routes except `GET /healthz` require `Authorization: Bearer <token>`.
 - `GET /v1/conversations/{conversationID}`
 - `POST /v1/conversations/{conversationID}/runs`
 - `GET /v1/runs/{runID}`
+- `POST /v1/runs/{runID}/execute` — A6 provider-neutral agent loop
 - `POST /v1/runs/{runID}/tools/{tool}` — A5 server-admitted read-only MCP invocation
 - `POST /v1/runs/{runID}/signals/{signal}`
 - `POST /v1/runs/{runID}/cancel`
@@ -142,3 +143,14 @@ The remaining non-atomic boundary is still explicit: Temporal durable execution 
 ## Next boundary
 
 A5 connects the first real engine, Data Engine, end-to-end through the Agent Server. The preferred first slice is read-only/profile execution before mutating data operations.
+
+
+## A6 agent execution
+
+When an `AgentRunner` is configured, `POST /v1/runs/{runID}/execute` executes the A6 structured decision loop against the exact stored run binding.
+
+Alternatively, provide `Reasoner + DurableInvoker`; Agent Server composes the default `agentloop.Engine` automatically.
+
+The server re-binds the current runtime before calling the Reasoner. Capability drift produces HTTP 409 and the Reasoner is not called.
+
+A6 persists only terminal run evidence. Tool execution evidence remains activity-owned in the A5.1 durable path. The A6 reasoning loop itself is request-scoped; disconnect/restart durability for reasoning is an explicit A6.1 boundary.
