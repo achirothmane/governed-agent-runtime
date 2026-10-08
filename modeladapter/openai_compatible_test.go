@@ -79,7 +79,7 @@ func mockProvider(t *testing.T, choice string, check func(*http.Request, []byte)
 
 func TestStructuredToolDecisionUsesOnlyBoundReadOnlySurface(t *testing.T) {
 	provider := mockProvider(t,
-		`{"kind":"TOOL","tool":"data.profile","arguments_json":"{\\"dataset\\":\\"sales\\"}","message":""}`,
+		`{"kind":"TOOL","tool":"data.profile","arguments_json":"{\"dataset\":\"sales\"}","message":""}`,
 		func(r *http.Request, raw []byte) {
 			body := string(raw)
 			if !strings.Contains(body, "data.profile") || !strings.Contains(body, "input_schema") {
