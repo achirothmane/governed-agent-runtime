@@ -50,6 +50,9 @@ jobs:
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then
             printf 'unformatted Go files:\n%s\n' "$unformatted"
+            for file in $unformatted; do
+              gofmt -d "$file"
+            done
             exit 1
           fi
 
