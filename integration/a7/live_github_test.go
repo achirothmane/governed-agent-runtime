@@ -192,11 +192,16 @@ func (b crashAfterLostAckBoundary) Observe(ctx context.Context, spec githubpr.Sp
 }
 
 func (b crashAfterLostAckBoundary) ExecuteGuarded(ctx context.Context, spec githubpr.Spec) (githubpr.Execution, error) {
-	_, err := b.client.ExecuteGuarded(ctx, spec)
+	result, err := b.client.ExecuteGuarded(ctx, spec)
 	if errors.Is(err, githubpr.ErrAmbiguousDispatch) {
 		os.Exit(helperCrashExitCode)
 	}
-	return githubpr.Execution{}, fmt.Errorf("A7 helper expected ambiguous lost-ack dispatch, got %v", err)
+	return githubpr.Execution{}, fmt.Errorf(
+		"A7 helper expected ambiguous lost-ack dispatch, got kind=%s reason=%s err=%v",
+		result.Kind,
+		result.Reason,
+		err,
+	)
 }
 
 func TestA7CrashHelperProcess(t *testing.T) {
