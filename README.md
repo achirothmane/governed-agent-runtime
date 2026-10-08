@@ -150,8 +150,20 @@ Runtime A6.1 makes the reasoning loop durable:
 - A5.1 tool workflow results are also compact and reload the verified result from PostgreSQL after Temporal completion;
 - every reasoning activity revalidates the current bound runtime before continuing.
 
+Runtime A7 adds the first real model-provider adapter:
 
-See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md), and [Durable Agent A6.1](docs/durable-agent-a6-1.md).
+- official OpenAI Go SDK v3.73.0 behind the provider-neutral `agentloop.Reasoner` interface;
+- Responses API requests with `store=false` and strict structured next-step decisions;
+- MCP title/description/input/output schemas copied into the exact bound `ToolDescriptor` and therefore the run fingerprint;
+- only server-admitted read-only tools exposed to the model;
+- provider requests omit MCP endpoints, snapshot digests, run/conversation/invocation IDs, workflow IDs, and credentials;
+- normalized observations may be shown to the model without durable execution identity;
+- SDK retries disabled so A6.1/Temporal owns retry policy;
+- invalid model output and deterministic reasoning-context failures are non-retryable;
+- no chain-of-thought request or persistence.
+
+
+See [AI-Native Runtime Architecture](docs/ai-native-runtime.md), [Temporal Durable Backend A2](docs/temporal-backend.md), [MCP Transport A3](docs/mcp-transport.md), and [Agent Server A4](docs/agent-server.md), and [Agent Server PostgreSQL Store A4.1](docs/agent-server-postgres.md), [Data Engine A5](docs/data-engine-a5.md), and [Temporal Tool Activity A5.1](docs/temporal-tool-activity-a5-1.md), and [Worker E2E A5.2](docs/worker-e2e-a5-2.md), and [Agent Loop A6](docs/agent-loop-a6.md), [Durable Agent A6.1](docs/durable-agent-a6-1.md), and [OpenAI Responses Reasoner A7](docs/openai-reasoner-a7.md).
 
 ## Effect boundary
 
