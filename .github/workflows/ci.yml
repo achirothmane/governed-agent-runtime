@@ -47,7 +47,14 @@ jobs:
 
       - name: Format check
         run: |
-          test -z "$(gofmt -l .)"
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            printf 'unformatted Go files:\n%s\n' "$unformatted"
+            for file in $unformatted; do
+              gofmt -d "$file"
+            done
+            exit 1
+          fi
 
       - name: Test
         run: go test -race ./...
