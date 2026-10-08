@@ -44,6 +44,13 @@ func TestActualLocalNativeModelProposesProfileThenFinishes(t *testing.T) {
 	runLocalModelTest(t, true)
 }
 
+// Opt-in single-read-only-observation experiment: native TOOL followed by
+// typed terminal synthesis. General multistep native runtime is unchanged.
+func TestActualLocalObservedTerminalProposesProfileThenFinishes(t *testing.T) {
+	t.Setenv("A7_LIVE_OBSERVED_TERMINAL", "1")
+	runLocalModelTest(t, true)
+}
+
 type localNativeResponseClient struct{ client openai.Client }
 
 func (c localNativeResponseClient) CreateNative(ctx context.Context, params responses.ResponseNewParams) (openairesponses.NativeOutput, error) {
@@ -97,7 +104,13 @@ func runLocalModelTest(t *testing.T, native bool) {
 	client := openai.NewClient(options...)
 	var reasoner agentloop.Reasoner
 	var err error
-	if native {
+	if native && os.Getenv("A7_LIVE_OBSERVED_TERMINAL") == "1" {
+		reasoner, err = openairesponses.NewObservedTerminalWithClients(
+			openairesponses.Config{Model: model, MaxOutputTokens: 768},
+			localNativeResponseClient{client: client},
+			localResponsesClient{client: client},
+		)
+	} else if native {
 		reasoner, err = openairesponses.NewNativeWithClient(
 			openairesponses.Config{Model: model, MaxOutputTokens: 768},
 			localNativeResponseClient{client: client},
