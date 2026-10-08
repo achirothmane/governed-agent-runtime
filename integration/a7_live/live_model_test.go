@@ -37,6 +37,40 @@ func (c localResponsesClient) Create(ctx context.Context, params responses.Respo
 }
 
 func TestActualLocalModelProposesProfileThenFinishes(t *testing.T) {
+	runLocalModelTest(t, false)
+}
+
+func TestActualLocalNativeModelProposesProfileThenFinishes(t *testing.T) {
+	runLocalModelTest(t, true)
+}
+
+type localNativeResponseClient struct{ client openai.Client }
+
+func (c localNativeResponseClient) CreateNative(ctx context.Context, params responses.ResponseNewParams) (openairesponses.NativeOutput, error) {
+	res, err := c.client.Responses.New(ctx, params)
+	if err != nil {
+		return openairesponses.NativeOutput{}, err
+	}
+	if res == nil {
+		return openairesponses.NativeOutput{}, fmt.Errorf("model returned nil response")
+	}
+	out := openairesponses.NativeOutput{}
+	for _, item := range res.Output {
+		switch item.Type {
+		case "function_call":
+			call := item.AsFunctionCall()
+			out.Calls = append(out.Calls, openairesponses.NativeCall{
+				Name: call.Name, Arguments: call.Arguments, Incomplete: call.Status == "incomplete",
+			})
+		case "reasoning":
+		default:
+			out.OtherOutputs++
+		}
+	}
+	return out, nil
+}
+
+func runLocalModelTest(t *testing.T, native bool) {
 	baseURL := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL_BASE_URL"))
 	model := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL"))
 	if baseURL == "" || model == "" {
@@ -55,10 +89,19 @@ func TestActualLocalModelProposesProfileThenFinishes(t *testing.T) {
 		option.WithBaseURL(baseURL),
 		option.WithMaxRetries(0),
 	)
-	reasoner, err := openairesponses.NewWithClient(
-		openairesponses.Config{Model: model, MaxOutputTokens: 768},
-		localResponsesClient{client: client},
-	)
+	var reasoner agentloop.Reasoner
+	var err error
+	if native {
+		reasoner, err = openairesponses.NewNativeWithClient(
+			openairesponses.Config{Model: model, MaxOutputTokens: 768},
+			localNativeResponseClient{client: client},
+		)
+	} else {
+		reasoner, err = openairesponses.NewWithClient(
+			openairesponses.Config{Model: model, MaxOutputTokens: 768},
+			localResponsesClient{client: client},
+		)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +126,7 @@ func TestActualLocalModelProposesProfileThenFinishes(t *testing.T) {
 	first, err := reasoner.Decide(ctx, agentloop.Turn{
 		Run: run, AgentMission: "Use data.profile to inspect raw evidence before answering; never guess results.", Step: 1,
 	})
-	t.Logf("live provider=%s first-step latency=%s kind=%s", model, time.Since(start).Round(time.Millisecond), first.Kind)
+	t.Logf("live provider=%s native=%v first-step latency=%s kind=%s", model, native, time.Since(start).Round(time.Millisecond), first.Kind)
 	if err != nil {
 		t.Fatalf("real-model step 1 failed: %v", err)
 	}
@@ -111,7 +154,7 @@ func TestActualLocalModelProposesProfileThenFinishes(t *testing.T) {
 		Run: run, AgentMission: "Use data.profile to inspect raw evidence before answering; never guess results.", Step: 2,
 		Observations: []agentloop.Observation{observation},
 	})
-	t.Logf("live provider=%s second-step latency=%s kind=%s", model, time.Since(start).Round(time.Millisecond), second.Kind)
+	t.Logf("live provider=%s native=%v second-step latency=%s kind=%s", model, native, time.Since(start).Round(time.Millisecond), second.Kind)
 	if err != nil {
 		t.Fatalf("real-model step 2 failed: %v", err)
 	}
