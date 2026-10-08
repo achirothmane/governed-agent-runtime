@@ -314,8 +314,8 @@ func TestToolDispatchReturnsCompactObservationReference(t *testing.T) {
 	ctx := context.Background()
 	run := durableRun()
 	decision := agentloop.Decision{
-		Kind: agentloop.DecisionTool,
-		Tool: "data.profile",
+		Kind:      agentloop.DecisionTool,
+		Tool:      "data.profile",
 		Arguments: map[string]any{"rows": []any{map[string]any{"secret": "raw-observation"}}},
 	}
 	ref, args, err := toolRef(run, 1, decision)
@@ -349,9 +349,9 @@ func TestToolDispatchReturnsCompactObservationReference(t *testing.T) {
 
 func TestDecisionRecordRejectsTamperedDigest(t *testing.T) {
 	record := DecisionRecord{
-		RunID: "run-1",
-		Step: 1,
-		Decision: agentloop.Decision{Kind: agentloop.DecisionFinish, Message: "done"},
+		RunID:          "run-1",
+		Step:           1,
+		Decision:       agentloop.Decision{Kind: agentloop.DecisionFinish, Message: "done"},
 		DecisionDigest: strings.Repeat("0", 64),
 	}
 	if !errors.Is(record.Validate(), ErrDecisionConflict) {

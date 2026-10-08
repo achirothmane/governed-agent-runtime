@@ -56,10 +56,10 @@ func (r ObservationRef) Validate() error {
 }
 
 type DecisionRecord struct {
-	RunID         runtimesdk.RunID   `json:"run_id"`
-	Step          int                `json:"step"`
-	Decision      agentloop.Decision `json:"decision"`
-	DecisionDigest string            `json:"decision_digest"`
+	RunID          runtimesdk.RunID   `json:"run_id"`
+	Step           int                `json:"step"`
+	Decision       agentloop.Decision `json:"decision"`
+	DecisionDigest string             `json:"decision_digest"`
 }
 
 func (r DecisionRecord) Validate() error {

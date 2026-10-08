@@ -161,10 +161,10 @@ func scanAgentExecution(scanner rowScanner) (temporalagent.ExecutionRef, error) 
 
 func scanDecision(scanner rowScanner) (temporalagent.DecisionRecord, error) {
 	var (
-		runID    string
-		step     int
-		payload  []byte
-		digest   string
+		runID   string
+		step    int
+		payload []byte
+		digest  string
 	)
 	if err := scanner.Scan(&runID, &step, &payload, &digest); err != nil {
 		return temporalagent.DecisionRecord{}, err
@@ -186,4 +186,3 @@ func scanDecision(scanner rowScanner) (temporalagent.DecisionRecord, error) {
 	}
 	return record, nil
 }
-

@@ -31,11 +31,11 @@ type WorkflowInput struct {
 }
 
 type WorkflowResult struct {
-	RunID        runtimesdk.RunID   `json:"run_id"`
+	RunID        runtimesdk.RunID      `json:"run_id"`
 	Kind         agentloop.OutcomeKind `json:"kind"`
-	Message      string             `json:"message,omitempty"`
-	Steps        int                `json:"steps"`
-	Observations []ObservationRef   `json:"observations,omitempty"`
+	Message      string                `json:"message,omitempty"`
+	Steps        int                   `json:"steps"`
+	Observations []ObservationRef      `json:"observations,omitempty"`
 }
 
 func Workflow(ctx workflow.Context, input WorkflowInput) (WorkflowResult, error) {
