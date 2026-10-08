@@ -61,6 +61,34 @@ func (c sdkResponsesClient) Create(ctx context.Context, params responses.Respons
 	return response.OutputText(), nil
 }
 
+type sdkNativeResponsesClient struct {
+	client openai.Client
+}
+
+func (c sdkNativeResponsesClient) CreateNative(ctx context.Context, params responses.ResponseNewParams) (openairesponses.NativeOutput, error) {
+	response, err := c.client.Responses.New(ctx, params)
+	if err != nil {
+		return openairesponses.NativeOutput{}, err
+	}
+	if response == nil {
+		return openairesponses.NativeOutput{}, errors.New("nil native response")
+	}
+	out := openairesponses.NativeOutput{}
+	for _, item := range response.Output {
+		switch item.Type {
+		case "function_call":
+			call := item.AsFunctionCall()
+			out.Calls = append(out.Calls, openairesponses.NativeCall{
+				Name: call.Name, Arguments: call.Arguments, Incomplete: call.Status == "incomplete",
+			})
+		case "reasoning":
+		default:
+			out.OtherOutputs++
+		}
+	}
+	return out, nil
+}
+
 type fakeProvider struct {
 	mu       sync.Mutex
 	calls    int
@@ -164,7 +192,7 @@ func (p *fakeProvider) callCount() int {
 }
 
 func TestOpenAIAdapterDrivesDurableDataEngineLoop(t *testing.T) {
-	runA7Integration(t, false)
+	runA7Integration(t, false, false)
 }
 
 // This separate test uses real model inference rather than the deterministic
@@ -178,10 +206,24 @@ func TestActualLocalModelDrivesDurableDataEngineLoop(t *testing.T) {
 	if !strings.HasPrefix(base, "http://127.0.0.1:") && !strings.HasPrefix(base, "http://localhost:") {
 		t.Fatal("live local model test requires loopback Ollama")
 	}
-	runA7Integration(t, true)
+	runA7Integration(t, true, false)
 }
 
-func runA7Integration(t *testing.T, live bool) {
+// Opt-in proof for a real model making native function calls through real
+// Temporal, PostgreSQL, and the actual Data Engine MCP instance.
+func TestActualLocalNativeModelDrivesDurableDataEngineLoop(t *testing.T) {
+	base := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL_BASE_URL"))
+	model := strings.TrimSpace(os.Getenv("A7_LIVE_MODEL"))
+	if base == "" || model == "" {
+		t.Skip("real local model inference is opt-in")
+	}
+	if !strings.HasPrefix(base, "http://127.0.0.1:") && !strings.HasPrefix(base, "http://localhost:") {
+		t.Fatal("live local model test requires loopback Ollama")
+	}
+	runA7Integration(t, true, true)
+}
+
+func runA7Integration(t *testing.T, live, native bool) {
 	dataEngineURL := strings.TrimSpace(os.Getenv("DATA_ENGINE_MCP_URL"))
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if dataEngineURL == "" || databaseURL == "" {
@@ -242,10 +284,18 @@ func runA7Integration(t *testing.T, live bool) {
 		option.WithAPIKey(apiKey),
 		option.WithMaxRetries(0),
 	)
-	reasoner, err := openairesponses.NewWithClient(
-		openairesponses.Config{Model: modelName},
-		sdkResponsesClient{client: openAIClient},
-	)
+	var reasoner agentloop.Reasoner
+	if native {
+		reasoner, err = openairesponses.NewNativeWithClient(
+			openairesponses.Config{Model: modelName},
+			sdkNativeResponsesClient{client: openAIClient},
+		)
+	} else {
+		reasoner, err = openairesponses.NewWithClient(
+			openairesponses.Config{Model: modelName},
+			sdkResponsesClient{client: openAIClient},
+		)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
