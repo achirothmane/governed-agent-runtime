@@ -460,29 +460,29 @@ const postgresReturningColumns = `
 
 func scanPostgresWork(scanner rowScanner, withDigest bool) (WorkRecord, []byte, error) {
 	var (
-		sequence             int64
-		eventID              string
-		agentID              string
-		eventKind            string
-		eventPayload         []byte
-		eventCreatedAtNS     int64
-		workState            string
-		lifecycleState       string
-		lifecycleVersion     int64
-		lifecycleUpdatedAtNS int64
-		planID               sql.NullString
-		planAgentID          sql.NullString
-		planEventID          sql.NullString
-		planDigest           []byte
-		planDocument         []byte
-		planBoundAtNS        sql.NullInt64
+		sequence                 int64
+		eventID                  string
+		agentID                  string
+		eventKind                string
+		eventPayload             []byte
+		eventCreatedAtNS         int64
+		workState                string
+		lifecycleState           string
+		lifecycleVersion         int64
+		lifecycleUpdatedAtNS     int64
+		planID                   sql.NullString
+		planAgentID              sql.NullString
+		planEventID              sql.NullString
+		planDigest               []byte
+		planDocument             []byte
+		planBoundAtNS            sql.NullInt64
 		effectResolutionDocument []byte
-		leaseOwner           sql.NullString
-		leaseEpoch           int64
-		leaseExpiresAtNS     sql.NullInt64
-		completedAtNS        sql.NullInt64
-		admissionDocument    []byte
-		eventDigest          []byte
+		leaseOwner               sql.NullString
+		leaseEpoch               int64
+		leaseExpiresAtNS         sql.NullInt64
+		completedAtNS            sql.NullInt64
+		admissionDocument        []byte
+		eventDigest              []byte
 	)
 
 	dest := []any{
