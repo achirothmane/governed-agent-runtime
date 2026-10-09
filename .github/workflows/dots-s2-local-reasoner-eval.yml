@@ -1,0 +1,105 @@
+name: Dots S2 Local LLM One-Decision Evaluation
+
+on:
+  pull_request:
+    paths:
+      - "dotproviders/ollama/**"
+      - "integration/dotsrealcontext/local_llm_test.go"
+      - "scripts/score_dots_local_reasoner.py"
+      - "scripts/test_score_dots_local_reasoner.py"
+      - ".github/workflows/dots-s2-local-reasoner-eval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scoped-local-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: governed_agent_runtime
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d governed_agent_runtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/governed_agent_runtime?sslmode=disable
+      DOTS_OLLAMA_MODEL: qwen3:1.7b
+      DOTS_ALLOW_LOCAL_LLM_TEST: "1"
+      ALLOW_PAID_MODEL_TEST: "0"
+      PORTFOLIO_CONTEXT_FILE: /tmp/dots-s2-real-context.json
+      DOTS_S2_EVIDENCE_FILE: /tmp/dots-s2-local-model-observation.json
+    steps:
+      - name: Checkout runtime under evaluation
+        uses: actions/checkout@v4
+      - name: Checkout pinned actual Portfolio
+        uses: actions/checkout@v4
+        with:
+          repository: achirothmane/achirothmane
+          ref: 604ce014077c9cf93bd8faa184b7a757cd454d5b
+          path: _portfolio
+          persist-credentials: false
+      - name: Pin actual Portfolio checkout location
+        run: echo "PORTFOLIO_ROOT=$GITHUB_WORKSPACE/_portfolio" >> "$GITHUB_ENV"
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify independent scorer before any model call
+        run: |
+          python -m unittest discover -s scripts -p test_score_dots_local_reasoner.py -v
+          go test -count=1 ./dotproviders/ollama/...
+          git diff --exit-code -- dotproviders/ollama/
+      - name: Start isolated CPU-only local model
+        run: |
+          docker run --rm -d --name dots-s2-ollama \
+            -p 127.0.0.1:11434:11434 \
+            -e OLLAMA_NUM_PARALLEL=1 -e OLLAMA_MAX_LOADED_MODELS=1 \
+            ollama/ollama:0.13.3
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Pull real local instruction model, no provider key
+        run: docker exec dots-s2-ollama ollama pull "$DOTS_OLLAMA_MODEL"
+      - name: Export real human-approved public Portfolio context
+        run: |
+          python -m pip install -r _portfolio/portfolio/requirements.txt
+          python _portfolio/portfolio/scripts/export_dots_context.py --root _portfolio --as-of "$(date -u +%F)" --output "$PORTFOLIO_CONTEXT_FILE"
+      - name: Actual Qwen3 model -> D3 -> D4 Temporal/Postgres (no tools)
+        run: |
+          go test -tags=integration -run '^TestActualLocalLanguageModelDecidesOverRealPublicPortfolio$' -count=1 -timeout=9m -v ./integration/dotsrealcontext
+      - name: Independently score real inference using preregistered rubric
+        run: |
+          python scripts/score_dots_local_reasoner.py \
+            --candidate "$DOTS_S2_EVIDENCE_FILE" \
+            --report /tmp/dots-s2-quality-report.json
+      - name: Preserve bounded evidence and explicit non-claims
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dots-s2-local-qwen3-evidence
+          path: |
+            /tmp/dots-s2-local-model-observation.json
+            /tmp/dots-s2-quality-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: No-cost local model diagnostics on failure
+        if: failure()
+        run: docker logs --tail=40 dots-s2-ollama || true
+      - name: Stop local model
+        if: always()
+        run: docker stop dots-s2-ollama || true
