@@ -1,6 +1,11 @@
 name: Dots S1 Actual Portfolio Temporal/PostgreSQL Proof
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "integration/dotsrealcontext/**"
+      - ".github/workflows/dots-real-s1-integration.yml"
   pull_request:
     paths:
       - "integration/dotsrealcontext/**"
