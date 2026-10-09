@@ -1,0 +1,71 @@
+name: Dots S3 Twelve Synthetic Blind-to-Model Decisions
+
+on:
+  pull_request:
+    paths:
+      - "evaluation/dots-s3/**"
+      - ".github/workflows/dots-s3-twelve-case-eval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-twelve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      DOTS_S3_MODEL: qwen3:1.7b
+    steps:
+      - name: Checkout frozen cases, keys and runner
+        uses: actions/checkout@v4
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fail-closed scorer tests before model calls
+        run: |
+          python -m unittest discover -s evaluation/dots-s3 -p 'test_*.py' -v
+          python -m compileall -q evaluation/dots-s3
+      - name: Run CPU-only isolated Ollama service
+        run: |
+          docker run --rm -d --name dots-s3-ollama \
+            -p 127.0.0.1:11434:11434 \
+            -e OLLAMA_NUM_PARALLEL=1 -e OLLAMA_MAX_LOADED_MODELS=1 \
+            ollama/ollama:0.13.3
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Pull public Qwen3 1.7B, no API key
+        run: docker exec dots-s3-ollama ollama pull "$DOTS_S3_MODEL"
+      - name: Generate exactly twelve blind-to-model decisions
+        run: |
+          python evaluation/dots-s3/run_model.py \
+            --cases evaluation/dots-s3/model_cases.json \
+            --model "$DOTS_S3_MODEL" \
+            --output /tmp/dots-s3-predictions.json
+      - name: Independently score AI versus deterministic reference rules
+        run: |
+          python evaluation/dots-s3/score_policy.py \
+            --cases evaluation/dots-s3/model_cases.json \
+            --reference evaluation/dots-s3/policy_reference.json \
+            --predictions /tmp/dots-s3-predictions.json \
+            --report /tmp/dots-s3-scored-report.json
+      - name: Archive actual model answers and blinded policy score
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dots-s3-twelve-synthetic-results
+          path: |
+            /tmp/dots-s3-predictions.json
+            /tmp/dots-s3-scored-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Show local model diagnostics on failure
+        if: failure()
+        run: docker logs --tail=45 dots-s3-ollama || true
+      - name: Stop local runtime
+        if: always()
+        run: docker stop dots-s3-ollama || true
