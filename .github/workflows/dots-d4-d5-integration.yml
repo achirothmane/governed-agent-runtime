@@ -1,0 +1,60 @@
+name: Dots D4 D5 Durable and Provider Integration
+
+on:
+  pull_request:
+    paths:
+      - "dotdecision/**"
+      - "dotdurable/**"
+      - "dotproviders/**"
+      - "portfoliocontext/**"
+      - "integration/dotsdurable/**"
+      - "integration/dotsprovider/**"
+      - ".github/scripts/dots_fixture.py"
+      - ".github/workflows/dots-d4-d5-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: governed_agent_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d governed_agent_runtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/governed_agent_runtime?sslmode=disable
+      ALLOW_PAID_MODEL_TEST: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - name: D4 synthetic context (no real work authorization)
+        run: python3 .github/scripts/dots_fixture.py --mode d4 --output /tmp/dots-d4-synthetic.json
+      - name: D4 real Temporal and PostgreSQL with local reasoner
+        env:
+          PORTFOLIO_CONTEXT_FILE: /tmp/dots-d4-synthetic.json
+        run: go test -tags=integration -run '^TestCurrentPortfolioDecisionIsDurablyCommittedAndReplayed$' -count=1 -timeout=7m -v ./integration/dotsdurable
+      - name: D5 synthetic context (no real work authorization)
+        run: python3 .github/scripts/dots_fixture.py --mode d5 --output /tmp/dots-d5-synthetic.json
+      - name: D5 real Temporal and PostgreSQL with mock model HTTP
+        env:
+          PORTFOLIO_CONTEXT_FILE: /tmp/dots-d5-synthetic.json
+        run: go test -tags=integration -run '^TestCurrentPortfolioSnapshotFlowsThroughOpenAIAdapterAndDurableGate$' -count=1 -timeout=7m -v ./integration/dotsprovider
+      - name: Provider unit falsification
+        run: go test -race -count=1 ./dotdecision/... ./dotdurable/... ./dotproviders/... ./portfoliocontext/...
