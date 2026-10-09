@@ -17,7 +17,7 @@ BASE = {
     "same_decision_replay": True,
     "tool_invocations": 0,
     "paid_provider_calls": 0,
-    "rationale": "Check independent PR and CI evidence; no paid provider decision is proven and human review remains required.",
+    "rationale": "Check independent PR and CI evidence; paid-provider outcome remains UNKNOWN and human review remains required.",
 }
 
 
