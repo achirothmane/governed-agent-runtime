@@ -29,9 +29,9 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/governed_agent_runtime?sslmode=disable
       ALLOW_PAID_MODEL_TEST: "0"
-      PORTFOLIO_CONTEXT_FILE: ${{ runner.temp }}/dots-real-context.json
-      PORTFOLIO_ROOT: ${{ github.workspace }}/_portfolio
-      DOT_REAL_EVIDENCE_FILE: ${{ runner.temp }}/dots-s1-proof.json
+      PORTFOLIO_CONTEXT_FILE: /tmp/dots-real-context.json
+      PORTFOLIO_ROOT: _portfolio
+      DOT_REAL_EVIDENCE_FILE: /tmp/dots-s1-proof.json
     steps:
       - name: Checkout current runtime change
         uses: actions/checkout@v4
@@ -82,5 +82,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dots-real-portfolio-d4-proof
-          path: ${{ runner.temp }}/dots-s1-proof.json
+          path: /tmp/dots-s1-proof.json
           retention-days: 7
