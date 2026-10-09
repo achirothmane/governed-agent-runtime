@@ -101,3 +101,21 @@ CREATE TABLE IF NOT EXISTS agent_server_reasoning_steps (
 
 CREATE INDEX IF NOT EXISTS agent_server_reasoning_steps_run_idx
     ON agent_server_reasoning_steps (run_id, step);
+
+
+CREATE TABLE IF NOT EXISTS portfolio_dot_decisions (
+    decision_id TEXT PRIMARY KEY,
+    snapshot_digest TEXT NOT NULL,
+    work_item_id TEXT NOT NULL,
+    decision_kind TEXT NOT NULL CHECK (
+        decision_kind IN ('PROPOSE_NEXT_GATE', 'ASK_HUMAN', 'REFUSE')
+    ),
+    requested_authority TEXT NOT NULL,
+    requested_action TEXT,
+    rationale TEXT NOT NULL,
+    decision_digest TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS portfolio_dot_decisions_snapshot_idx
+    ON portfolio_dot_decisions (snapshot_digest, created_at, decision_id);
