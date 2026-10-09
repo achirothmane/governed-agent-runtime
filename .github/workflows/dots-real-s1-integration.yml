@@ -1,0 +1,108 @@
+name: Dots S1 Actual Portfolio Temporal/PostgreSQL Proof
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "integration/dotsrealcontext/**"
+      - ".github/workflows/dots-real-s1-integration.yml"
+  pull_request:
+    paths:
+      - "integration/dotsrealcontext/**"
+      - ".github/workflows/dots-real-s1-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-source-local-reasoner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: governed_agent_runtime
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d governed_agent_runtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/governed_agent_runtime?sslmode=disable
+      ALLOW_PAID_MODEL_TEST: "0"
+      PORTFOLIO_CONTEXT_FILE: /tmp/dots-real-context.json
+      PORTFOLIO_ROOT: ${{ github.workspace }}/_portfolio
+      DOT_REAL_EVIDENCE_FILE: /tmp/dots-s1-proof.json
+    steps:
+      - name: Checkout current runtime change
+        uses: actions/checkout@v4
+      - name: Checkout exact evidence-source Portfolio main commit
+        uses: actions/checkout@v4
+        with:
+          repository: achirothmane/achirothmane
+          ref: 604ce014077c9cf93bd8faa184b7a757cd454d5b
+          path: _portfolio
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Export actual Portfolio context without paid calls
+        run: |
+          python -m pip install -r _portfolio/portfolio/requirements.txt
+          python _portfolio/portfolio/scripts/export_dots_context.py --root _portfolio --as-of "$(date -u +%F)" --output "$PORTFOLIO_CONTEXT_FILE"
+      - name: Run real-source D2 D3 D4 proof over Temporal and PostgreSQL
+        run: |
+          go test -tags=integration -run '^TestRealPublicPortfolioD4DecisionPersistsWithoutTools$' -count=1 -timeout=8m -v ./integration/dotsrealcontext
+      - name: Independently assert evidence does not overclaim autonomous judgment
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(os.environ['DOT_REAL_EVIDENCE_FILE']).read_text())
+          assert data['state'] == 'D4_REAL_SOURCE_DURABILITY_PASS'
+          assert data['source_context'] == 'actual_public_portfolio_main'
+          assert data['work_item_id'] == 'dots-runtime-evidence-observe-006'
+          assert data['authority'] == 'OBSERVE'
+          assert data['reasoner'] == 'local-deterministic-not-ai'
+          assert data['reasoner_calls'] == 1
+          assert data['provider_calls'] == 0
+          assert data['tool_invocations'] == 0
+          assert data['temporal_postgresql_commit'] is True
+          assert data['same_decision_replay'] is True
+          assert data['model_quality'] == 'NOT_MEASURED'
+          assert data['external_effects_authorized'] is False
+          import sys
+          sys.path.insert(0, str(Path(os.environ["PORTFOLIO_ROOT"]) / "portfolio" / "scripts"))
+          import shadow_management as oracle
+          from datetime import date
+          docs, source_digest = oracle.load_inputs(Path(os.environ["PORTFOLIO_ROOT"]) / "portfolio")
+          actual = json.loads((Path(os.environ["PORTFOLIO_ROOT"]) / "portfolio" / "shadow-reference.json").read_text())
+          assert source_digest == actual["snapshot_sha256"]
+          item = next(x for x in docs["execution-queue.yaml"]["execution_queue"]["items"]
+                      if x.get("id") == data["work_item_id"])
+          assert item["project"] == "governed-agent-runtime" and item["authority"] == "OBSERVE"
+          candidate = {"schema_version": 1, "snapshot_sha256": source_digest,
+                       "proposals": [{"project_id": item["project"], "action": "OBSERVE"}]}
+          assessment = oracle.report(docs, source_digest, date.fromisoformat(actual["as_of"]), candidate)
+          assert assessment["candidate_evaluation"]["accepted"] == 1
+          assert assessment["candidate_evaluation"]["decisions"][0]["state"] == "POLICY_ADMISSIBLE_ONLY"
+          assert assessment["candidate_evaluation"]["decisions"][0]["may_execute"] is False
+          assert assessment["model_quality_score"] == "NOT_MEASURED"
+          print('S1_REAL_SOURCE_DURABILITY_AND_S0_POLICY_ONLY_AUDIT: PASS')
+          PY
+      - name: Retain sanitized, non-model, public-source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dots-real-portfolio-d4-proof
+          path: /tmp/dots-s1-proof.json
+          retention-days: 7
