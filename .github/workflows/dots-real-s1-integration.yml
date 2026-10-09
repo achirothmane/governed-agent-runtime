@@ -30,7 +30,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/governed_agent_runtime?sslmode=disable
       ALLOW_PAID_MODEL_TEST: "0"
       PORTFOLIO_CONTEXT_FILE: /tmp/dots-real-context.json
-      PORTFOLIO_ROOT: _portfolio
+      PORTFOLIO_ROOT: ${{ github.workspace }}/_portfolio
       DOT_REAL_EVIDENCE_FILE: /tmp/dots-s1-proof.json
     steps:
       - name: Checkout current runtime change
@@ -76,7 +76,24 @@ jobs:
           assert data['same_decision_replay'] is True
           assert data['model_quality'] == 'NOT_MEASURED'
           assert data['external_effects_authorized'] is False
-          print('S1_REAL_SOURCE_DURABILITY_AND_ZERO_EFFECT_AUDIT: PASS')
+          import sys
+          sys.path.insert(0, str(Path(os.environ["PORTFOLIO_ROOT"]) / "portfolio" / "scripts"))
+          import shadow_management as oracle
+          from datetime import date
+          docs, source_digest = oracle.load_inputs(Path(os.environ["PORTFOLIO_ROOT"]) / "portfolio")
+          actual = json.loads((Path(os.environ["PORTFOLIO_ROOT"]) / "portfolio" / "shadow-reference.json").read_text())
+          assert source_digest == actual["snapshot_sha256"]
+          item = next(x for x in docs["execution-queue.yaml"]["execution_queue"]["items"]
+                      if x.get("id") == data["work_item_id"])
+          assert item["project"] == "governed-agent-runtime" and item["authority"] == "OBSERVE"
+          candidate = {"schema_version": 1, "snapshot_sha256": source_digest,
+                       "proposals": [{"project_id": item["project"], "action": "OBSERVE"}]}
+          assessment = oracle.report(docs, source_digest, date.fromisoformat(actual["as_of"]), candidate)
+          assert assessment["candidate_evaluation"]["accepted"] == 1
+          assert assessment["candidate_evaluation"]["decisions"][0]["state"] == "POLICY_ADMISSIBLE_ONLY"
+          assert assessment["candidate_evaluation"]["decisions"][0]["may_execute"] is False
+          assert assessment["model_quality_score"] == "NOT_MEASURED"
+          print('S1_REAL_SOURCE_DURABILITY_AND_S0_POLICY_ONLY_AUDIT: PASS')
           PY
       - name: Retain sanitized, non-model, public-source evidence
         uses: actions/upload-artifact@v4
