@@ -1,0 +1,28 @@
+name: One-time Dots S1 Go Formatting
+on:
+  push:
+    branches: [test/dots-real-portfolio-d4-readonly]
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.repository == 'achirothmane/governed-agent-runtime'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - name: Format Go integration source on review branch
+        run: |
+          test "$(git branch --show-current)" = "test/dots-real-portfolio-d4-readonly"
+          gofmt -w integration/dotsrealcontext/e2e_test.go
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add integration/dotsrealcontext/e2e_test.go
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "style(dots): format real-Portfolio Go integration test"
+          git push origin HEAD:test/dots-real-portfolio-d4-readonly
