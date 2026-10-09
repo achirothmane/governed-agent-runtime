@@ -10,6 +10,8 @@ import argparse
 import hashlib
 import json
 import re
+import sys
+import datetime as dt
 from pathlib import Path
 
 EXPECTED_ITEM = "dots-runtime-evidence-observe-006"
@@ -68,12 +70,33 @@ def audit(trace: dict) -> dict:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--candidate", type=Path, required=True)
+    p.add_argument("--portfolio-root", type=Path, required=True, help="Pinned real public source checkout for independent S0 policy check")
     p.add_argument("--report", type=Path, required=True)
     args = p.parse_args()
     if args.candidate.stat().st_size > 32_768:
         raise SystemExit("TRACE_TOO_LARGE")
     evidence = json.loads(args.candidate.read_text())
     report = audit(evidence)
+    portfolio = args.portfolio_root.resolve() / "portfolio"
+    sys.path.insert(0, str(portfolio / "scripts"))
+    import shadow_management
+    docs, digest = shadow_management.load_inputs(portfolio)
+    reference = json.loads((portfolio / "shadow-reference.json").read_text(encoding="utf-8"))
+    if digest != reference["snapshot_sha256"]:
+        raise SystemExit("S0_REFERENCE_DIGEST_CONFLICT")
+    admitted = [x for x in docs["execution-queue.yaml"]["execution_queue"]["items"]
+                if x.get("id") == evidence.get("work_item_id") and x.get("state") == "READY"]
+    if len(admitted) != 1 or admitted[0].get("authority") != "OBSERVE":
+        raise SystemExit("S0_READY_OBSERVE_BINDING_MISSING")
+    candidate = {"schema_version": 1, "snapshot_sha256": digest,
+                 "proposals": [{"project_id": admitted[0]["project"], "action": "OBSERVE"}]}
+    independent = shadow_management.report(
+        docs, digest, dt.date.fromisoformat(reference["as_of"]), candidate
+    )["candidate_evaluation"]
+    if independent.get("accepted") != 1 or independent["decisions"][0]["may_execute"] is not False:
+        raise SystemExit("S0_INDEPENDENT_POLICY_REJECTED")
+    report["independent_s0_policy"] = "POLICY_ADMISSIBLE_ONLY"
+    report["independent_s0_source_sha256"] = digest
     args.report.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n")
     print(json.dumps({k: report[k] for k in ("measurement", "security_gate", "qualitative_score",
                                             "qualitative_max", "n_actual_model_decisions",
