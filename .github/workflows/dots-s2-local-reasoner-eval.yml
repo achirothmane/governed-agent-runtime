@@ -1,6 +1,14 @@
 name: Dots S2 Local LLM One-Decision Evaluation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "dotproviders/ollama/**"
+      - "integration/dotsrealcontext/local_llm_test.go"
+      - "scripts/score_dots_local_reasoner.py"
+      - "scripts/test_score_dots_local_reasoner.py"
+      - ".github/workflows/dots-s2-local-reasoner-eval.yml"
   pull_request:
     paths:
       - "dotproviders/ollama/**"
@@ -86,6 +94,7 @@ jobs:
         run: |
           python scripts/score_dots_local_reasoner.py \
             --candidate "$DOTS_S2_EVIDENCE_FILE" \
+            --portfolio-root "$PORTFOLIO_ROOT" \
             --report /tmp/dots-s2-quality-report.json
       - name: Preserve bounded evidence and explicit non-claims
         if: always()
